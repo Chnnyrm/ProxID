@@ -1,0 +1,67 @@
+# Pinned architecture decisions. A later agent reads this first and conforms.
+
+project: ProxID
+languages: [python, typescript]
+strict_uniform_casing: false
+
+## Backend (python, .py, snake_case)
+
+layers:
+  routers:  backend/app/api/v1/endpoints
+  schemas:  backend/app/schemas
+  services: backend/app/services
+  crud:     backend/app/crud
+  entities: backend/app/models
+  core:     backend/app/core
+  middleware: backend/app/middleware
+
+composition_root: backend/app/core/container.py
+entry_point: backend/app/main.py
+migrations: backend/alembic/versions
+architecture_check: python backend/arch_check.py
+test_command: cd backend && python -m pytest -q
+
+### Rules the checker enforces
+
+1. endpoints may import schemas, services, core. Never crud, never models.
+2. services may import crud, schemas, models, core, other services only through
+   the use-case service, never a second entity's service. A service never
+   imports a database driver (asyncpg, psycopg2) and never builds an engine.
+3. crud may import models, schemas, core. Never services, never endpoints,
+   never another entity's crud module.
+4. models import sqlalchemy and core only. Never schemas, crud, services.
+5. schemas import pydantic and core only. Never models, crud, services.
+6. Raw SQL strings live only in crud.
+7. Feature flags are read only in core/config.py. No os.getenv elsewhere.
+8. No emoji and no non-ASCII in source, comments, or user-facing strings.
+
+## Frontend (typescript, .ts/.tsx, camelCase)
+
+layers:
+  entities:     frontend/src/types
+  schemas:      frontend/src/lib/contracts
+  crud:         frontend/src/services      (transport to the backend)
+  services:     frontend/src/hooks         (business logic, query composition)
+  routers:      frontend/src/pages         (route entry points)
+  presentation: frontend/src/components
+
+Rules:
+1. pages and components never import src/services or src/lib/api directly.
+   They use hooks.
+2. hooks never call fetch/axios. They call src/services.
+3. services never import React, hooks, components, or pages.
+4. types import nothing.
+5. architecture_check: node frontend/scripts/arch-check.mjs
+
+## Coexisting framework directories
+
+backend/alembic is Alembic's own directory and lives alongside the layout.
+frontend/src/components/ui is the primitive set (button, card, input); it is
+presentation only and is imported by pages and components, never the reverse.
+
+## Deliberate deviations from house-standard.md
+
+- The architecture check is a dependency-free AST/source scanner rather than
+  import-linter. It enforces every layer contract import-linter would, plus the
+  emoji, banned-name, raw-SQL-placement and config-flag-placement rules that
+  import-linter cannot express. One command, no extra install.
