@@ -188,7 +188,7 @@ async def set_concordium_verification(
     db: AsyncSession,
     user: User,
     *,
-    account_address: str,
+    account_address: str | None,
     proof_reference: str,
 ) -> User:
     """Record a verified-human proof reference on a user.
@@ -197,11 +197,27 @@ async def set_concordium_verification(
     while the integration is unconfigured, and it refuses an empty reference so a
     badge cannot be granted by accident.
     """
-    if not proof_reference or not account_address:
-        raise ValueError("verification requires both an account address and a proof reference")
-    user.concordium_account_address = account_address
+    if not proof_reference:
+        raise ValueError("verification requires a proof reference; a badge with nothing behind it is not a badge")
+    if account_address:
+        user.concordium_account_address = account_address
     user.concordium_zk_proof_ref = proof_reference
     user.concordium_verified = True
     user.verified_at = datetime.now(timezone.utc)
     await db.flush()
     return user
+
+
+async def get_many_by_ids(
+    db: AsyncSession, user_ids: list[uuid.UUID]
+) -> dict[uuid.UUID, User]:
+    """A batch of users by id, in one query.
+
+    Exists so a list of listings can show provider names without one query per
+    listing.
+    """
+    wanted = [user_id for user_id in user_ids if user_id is not None]
+    if not wanted:
+        return {}
+    result = await db.execute(select(User).where(User.id.in_(wanted)))
+    return {user.id: user for user in result.scalars().all()}

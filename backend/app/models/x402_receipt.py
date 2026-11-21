@@ -21,7 +21,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -49,7 +49,14 @@ class X402Receipt(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="NGN")
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="not_configured")
+    # "concordium" is the rail. The CAIP-2 id is the network within it.
     network: Mapped[str] = mapped_column(String(16), nullable=False, default="concordium")
+    network_caip2: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The asset identifier (CCD or a PLT token id) and the facilitator that sponsors gas.
+    asset: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    fee_payer: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # The exact 402 body that was shown, so a receipt can be reconciled later.
+    requirements: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     # The on-chain settlement reference. Null until a real settlement happened.
     x402_tx_hash: Mapped[str | None] = mapped_column(String(128), nullable=True)
     payer_account: Mapped[str | None] = mapped_column(String(64), nullable=True)

@@ -88,23 +88,74 @@ class Settings(BaseSettings):
     MAP_TILE_ATTRIBUTION: str = "OpenStreetMap contributors"
 
     # -- Concordium ----------------------------------------------------------
-    # Nothing here is set yet. Leave every value empty until the contracts are
-    # deployed and the credentials are issued; an empty value makes the
-    # Concordium services return not_configured rather than guess.
+    # CONTRACT ADDRESSES: only the agent registry address is known, and only
+    # because it was given to us as the verified testnet contract. Everything else
+    # is empty: an empty value makes the service return not_configured rather than
+    # call a host that was never issued to us.
     CONCORDIUM_NETWORK: Literal["testnet", "mainnet"] = "testnet"
-    # gRPC node endpoint, for example the address of your node. No default.
+    # Verified testnet agent registry contract (CIS-8004). Confirmed as 12802,0.
+    CONCORDIUM_AGENT_REGISTRY_ADDRESS: str = "12802,0"
+    # gRPC node endpoint. No default: the package documents one, but this
+    # deployment has not been issued one, so an empty value keeps us honest.
     CONCORDIUM_NODE_ENDPOINT: str = ""
-    # Address of the deployed identity/revocation registry contract. No default.
+    # Identity/revocation registry contract. Not issued yet.
     CONCORDIUM_IDENTITY_CONTRACT_ADDRESS: str = ""
-    # Address of the deployed CIS-8004 agent registry contract. No default.
-    CONCORDIUM_AGENT_REGISTRY_ADDRESS: str = ""
-    # Account that receives and settles x402 payments. No default.
+    # CAIP-2 network id for x402. Testnet, read from @x402/concordium's constants.
+    CONCORDIUM_CAIP2_NETWORK: str = "ccd:4221332d34e1694168c2a0c0b3fd0f27"
+    # Account that receives x402 payments. Not issued yet.
     CONCORDIUM_X402_MERCHANT_ACCOUNT: str = ""
-    # Base URL of the x402 facilitator/verifier once one is chosen. No default.
-    CONCORDIUM_X402_FACILITATOR_URL: str = ""
-    # Issuer metadata URL used to check a zero-knowledge proof reference. No default.
-    CONCORDIUM_ZK_VERIFIER_URL: str = ""
     CONCORDIUM_REQUEST_TIMEOUT_SECONDS: float = 15.0
+
+    # -- Veriox (Verify and Access: ZKP personhood with a QR) -----------------
+    # Veriox handles QR generation, chain anchoring and a true/false verification
+    # answer. demo.veriox.io was inspected and exposes no public API schema, so the
+    # base URL is configuration and the adapter refuses to guess a path.
+    VERIOX_BASE_URL: str = ""
+    VERIOX_API_KEY: str = ""
+    # Domain the verification request is bound to. Must be the deploying site.
+    VERIOX_BOUND_DOMAIN: str = "localhost"
+    # Resource paths for the two calls. Left empty on purpose: the demo site does not
+    # publish its API, so these must come from the Veriox integration guide. An empty
+    # path makes the adapter refuse to run instead of calling a guessed URL.
+    VERIOX_REQUEST_PATH: str = ""
+    VERIOX_STATUS_PATH: str = ""
+    # How long a Verification Request Anchor stays valid. Single use, always.
+    VERIOX_REQUEST_TTL_SECONDS: int = 300
+
+    # -- Agent IDP (delegated agent identity, DevNet only) --------------------
+    # Concordium's Agent IDP issues a scoped credential to an agent after the human
+    # reveals one attribute with a ZKP. On DevNet only, so this stays empty.
+    CONCORDIUM_AGENT_IDP_URL: str = ""
+
+    # -- x402 ----------------------------------------------------------------
+    # The real npm package is @x402/concordium (2.x), part of the x402-foundation
+    # v2 SDK. It ships Client, Server and Facilitator; we write none of them and
+    # call the packaged Server through a small Node bridge.
+    X402_PACKAGE_NAME: str = "@x402/concordium"
+    # Base URL of our Node bridge that wraps the package's Server component. No
+    # default: an empty value means the rail is not connected.
+    X402_BRIDGE_URL: str = ""
+    # Facilitator this deployment trusts to verify and sponsor gas. No default.
+    X402_FACILITATOR_URL: str = ""
+    # Asset and atomic amount unit. CCD has 6 decimals; USDR is a PLT with 6.
+    X402_ASSET: str = "CCD"
+    X402_ASSET_DECIMALS: int = 6
+    # The package rejects a transaction expiry further out than this (its Rule 7).
+    X402_MAX_EXPIRY_OFFSET_SECONDS: int = 600
+    # Finalisation the package waits for by default: 60s, against ~10s finality.
+    X402_FINALIZATION_TIMEOUT_SECONDS: int = 60
+
+    # -- Agent spending safety ----------------------------------------------
+    # Protocol-level account locks are DevNet only, so until they are usable every
+    # agent is confined by client-side limits against a dedicated low-balance
+    # account. These are the numbers that ISOLATE the agent.
+    AGENT_SPEND_PER_PAYMENT_LIMIT: float = 5000.0
+    AGENT_SPEND_DAILY_LIMIT: float = 20000.0
+    # Comma-separated payee account addresses the agent may ever pay. Empty means
+    # the agent may pay nobody: an allowlist is a deny-by-default control.
+    AGENT_RECIPIENT_ALLOWLIST: str = ""
+    # Whether a human must approve each payment before it is initiated.
+    AGENT_REQUIRES_HUMAN_APPROVAL: bool = True
 
     # -- Resilience ----------------------------------------------------------
     BREAKER_FAILURE_THRESHOLD: int = 5
@@ -129,6 +180,11 @@ class Settings(BaseSettings):
     # Added 2026-11-21. Removed when x402 settlement is enabled end to end.
     # While false, the x402 endpoints answer not_configured.
     FEATURE_X402_PAYMENTS: bool = False
+    # Added 2026-11-21. Removed when the Veriox integration is switched on and a
+    # real verification request has been completed against demo.veriox.io.
+    FEATURE_VERIOX_IDENTITY: bool = False
+    # Added 2026-11-21. Removed when Agent IDP leaves DevNet.
+    FEATURE_AGENT_IDP: bool = False
     # Added 2026-11-21. Removed once the judge demo is no longer needed.
     # Controls whether POST /auth/demo-login is mounted at all.
     FEATURE_JUDGE_DEMO: bool = True
@@ -179,6 +235,7 @@ class Settings(BaseSettings):
             self.CONCORDIUM_NODE_ENDPOINT
             and self.CONCORDIUM_IDENTITY_CONTRACT_ADDRESS
             and self.CONCORDIUM_X402_MERCHANT_ACCOUNT
+            and self.CONCORDIUM_X402_FACILITATOR_URL
         )
 
     def assert_runtime_configuration(self) -> None:
@@ -198,6 +255,34 @@ class Settings(BaseSettings):
                 "ProxID cannot start: set " + ", ".join(missing) + " in backend/.env. "
                 "Copy backend/.env.example and fill in the values."
             )
+
+    @property
+    def agent_recipient_allowlist(self) -> list[str]:
+        """The payees an agent may ever pay, as a list. Empty means nobody."""
+        return [
+            address.strip()
+            for address in self.AGENT_RECIPIENT_ALLOWLIST.split(",")
+            if address.strip()
+        ]
+
+    @property
+    def veriox_configured(self) -> bool:
+        """True only when the flag is on and a base URL and key exist."""
+        return bool(
+            self.FEATURE_VERIOX_IDENTITY
+            and self.VERIOX_BASE_URL
+            and self.VERIOX_API_KEY
+        )
+
+    @property
+    def x402_configured(self) -> bool:
+        """True only when the flag, the bridge, the facilitator and a merchant exist."""
+        return bool(
+            self.FEATURE_X402_PAYMENTS
+            and self.X402_BRIDGE_URL
+            and self.X402_FACILITATOR_URL
+            and self.CONCORDIUM_X402_MERCHANT_ACCOUNT
+        )
 
 
 settings = Settings()

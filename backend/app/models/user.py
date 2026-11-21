@@ -64,8 +64,20 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     # itself: the point of the proof is that it is not retained here.
     concordium_zk_proof_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
     verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    # CIS-8004 agent registration, for accounts that act as an agent.
+    # CIS-8004 agent registration, for accounts that act as an agent. (The
+    # workshops call the same standard CIS-804; the documented name is used in code
+    # and the name is kept out of user-facing copy until it is confirmed.)
     cis8004_agent_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # The agent holds its own scoped identity, distinct from the human's: its own
+    # account address and its own verification status. Concordium's Agent IDP issues
+    # that credential after the human reveals one attribute with a zero-knowledge
+    # proof, so the agent never borrows the human's master identity. Agent IDP is
+    # DevNet only, so these stay null.
+    agent_account_address: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    agent_verified: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
+    agent_verification_ref: Mapped[str | None] = mapped_column(String(128), nullable=True)
     # URL of the agent card the on-chain registration points at.
     agent_card_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     agent_autonomy_level: Mapped[str] = mapped_column(

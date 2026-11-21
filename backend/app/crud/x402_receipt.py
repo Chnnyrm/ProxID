@@ -49,6 +49,10 @@ async def create(
     status: str,
     idempotency_key: str | None = None,
     network: str = "concordium",
+    network_caip2: str | None = None,
+    asset: str | None = None,
+    fee_payer: str | None = None,
+    requirements: dict | None = None,
     is_demo: bool = False,
     failure_reason: str | None = None,
 ) -> X402Receipt:
@@ -61,6 +65,10 @@ async def create(
         payee_id=payee_id,
         status=status,
         network=network,
+        network_caip2=network_caip2,
+        asset=asset,
+        fee_payer=fee_payer,
+        requirements=requirements or {},
         idempotency_key=idempotency_key,
         is_demo=is_demo,
         failure_reason=failure_reason,
@@ -91,3 +99,22 @@ async def mark_failed(
     receipt.failure_reason = reason
     await db.flush()
     return receipt
+
+
+async def sum_settled_since(
+    db: AsyncSession, payer_id: uuid.UUID, since: datetime
+) -> float:
+    """How much this payer has actually settled since a moment, in one query.
+
+    Only ``settled`` receipts count: a demo receipt and a not-configured receipt moved
+    nothing, so counting them would make the agent's daily cap lie.
+    """
+    result = await db.execute(
+        select(func.coalesce(func.sum(X402Receipt.amount), 0)).where(
+            X402Receipt.payer_id == payer_id,
+            X402Receipt.status == "settled",
+            X402Receipt.settled_at.isnot(None),
+            X402Receipt.settled_at >= since,
+        )
+    )
+    return float(result.scalar_one() or 0)

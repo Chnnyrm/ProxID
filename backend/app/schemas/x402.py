@@ -30,10 +30,17 @@ class X402InitiateRequest(InputModel):
 
 
 class X402SettleRequest(InputModel):
-    """Ask to settle an initiated payment."""
+    """Ask to settle an initiated payment.
+
+    ``signed_transaction`` and ``sender`` are what the buyer's wallet returns: a
+    sender-signed V1 sponsored transaction naming the facilitator as sponsor, and the
+    sender account. Omitted, there is nothing to verify and the caller is told so.
+    """
 
     receipt_id: uuid.UUID
     idempotency_key: str = Field(min_length=8, max_length=128)
+    signed_transaction: str | None = Field(default=None, max_length=200_000)
+    sender: str | None = Field(default=None, max_length=64)
 
 
 class X402ReceiptOut(OutputModel):
@@ -54,15 +61,35 @@ class X402ReceiptOut(OutputModel):
     settled_at: datetime | None = None
 
 
-class X402NotConfiguredOut(OutputModel):
-    """The only response the rail can honestly give today.
+class X402ActionOut(OutputModel):
+    """The result of asking the rail to do something.
 
-    It carries no address, no endpoint, and no hash, because inventing any of
-    those would be a lie a judge could check.
+    One shape for every state, so a client written today keeps working when the
+    rail arrives. In this build ``configured`` is always false and ``status`` is
+    always ``not_configured``: no address, no endpoint and no hash is invented,
+    because inventing any of them would be a lie a judge could check.
     """
 
-    configured: Literal[False] = False
-    status: Literal["not_configured"] = "not_configured"
+    configured: bool
+    status: X402Status
     message: str
     network: str
     receipt: X402ReceiptOut | None = None
+
+
+class X402RequirementsOut(OutputModel):
+    """The 402 body, in the shape the packaged server builds.
+
+    Shown to a client so the interface can render what a payment would look like,
+    even while no rail is connected.
+    """
+
+    x402Version: int
+    scheme: str
+    network: str
+    payTo: str
+    price: dict
+    description: str
+    mimeType: str
+    maxTimeoutSeconds: int
+    extra: dict
