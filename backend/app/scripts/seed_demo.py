@@ -36,7 +36,6 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import settings
@@ -51,7 +50,7 @@ from ..models.service import ServiceListing
 from ..models.user import User
 from ..models.verification_request import VerificationRequest
 from ..models.x402_receipt import X402Receipt
-from ..services.concordium.audit_service import new_nonce, payload_hash, safe_detail
+from ..services.concordium.audit_service import payload_hash, safe_detail
 
 #: Namespace for deterministic ids. Changing it would duplicate a seeded database, so it
 #: is a constant with a comment rather than a value derived at runtime.

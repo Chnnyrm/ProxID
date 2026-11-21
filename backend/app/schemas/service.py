@@ -7,7 +7,7 @@ from datetime import datetime
 
 from pydantic import Field, model_validator
 
-from .base import InputModel, Money, OutputModel, TrimmedText
+from .base import Money, OutputModel, TrimmedText
 
 
 class ServiceCreate(TrimmedText):

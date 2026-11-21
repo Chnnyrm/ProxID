@@ -21,7 +21,6 @@ returns an explicit true. Nothing else in ProxID may set ``concordium_verified``
 
 from __future__ import annotations
 
-import uuid
 from dataclasses import dataclass
 from datetime import datetime
 

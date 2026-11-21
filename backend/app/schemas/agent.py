@@ -7,7 +7,7 @@ from datetime import datetime
 
 from pydantic import Field
 
-from .base import InputModel, OutputModel, TrimmedText
+from .base import OutputModel, TrimmedText
 
 
 class AgentRunRequest(TrimmedText):

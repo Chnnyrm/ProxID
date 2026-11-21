@@ -56,7 +56,7 @@ export function createRegistrar(opts: RegistrarOptions): Registrar {
     return names
   }
 
-  async function sync(): Promise<void> {
+  async function runSync(): Promise<void> {
     if (stopped) return
     const context = opts.getModelContext()
     if (!context || typeof context.registerTool !== 'function') return
@@ -95,15 +95,24 @@ export function createRegistrar(opts: RegistrarOptions): Registrar {
     }
   }
 
-  function schedule(): void {
-    queue = queue.then(sync).catch(() => undefined)
+  /**
+   * Every sync goes through one queue.
+   *
+   * This is not tidiness: two syncs running at once both pass the "not registered yet"
+   * check and register the same tool twice, which a host may accept and which leaves two
+   * AbortControllers for one name. A login burst and the host-polling retry are exactly
+   * the case that produces it, so the public `sync` is queued as well.
+   */
+  function schedule(): Promise<void> {
+    queue = queue.then(runSync).catch(() => undefined)
+    return queue as Promise<void>
   }
 
   return {
     start() {
       if (stopped) return
-      schedule()
-      if (!unsubscribe) unsubscribe = opts.onAuthChange(() => schedule())
+      void schedule()
+      if (!unsubscribe) unsubscribe = opts.onAuthChange(() => void schedule())
     },
     stop() {
       stopped = true
@@ -115,6 +124,6 @@ export function createRegistrar(opts: RegistrarOptions): Registrar {
       controllers.clear()
       registered.clear()
     },
-    sync,
+    sync: schedule,
   }
 }
