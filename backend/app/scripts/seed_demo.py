@@ -292,11 +292,23 @@ def _demo_audit_hash(action: str, subject_id: str, nonce: str) -> str:
     return payload_hash(nonce, payload)
 
 
-async def _upsert(session: AsyncSession, model, row_id: uuid.UUID, values: dict) -> tuple[object, bool]:
-    """Insert or update one row by its deterministic id. Returns ``(row, created)``."""
+async def _upsert(
+    session: AsyncSession,
+    model,
+    row_id: uuid.UUID,
+    values: dict,
+    *,
+    create_only: dict | None = None,
+) -> tuple[object, bool]:
+    """Insert or update one row by its deterministic id. Returns ``(row, created)``.
+
+    ``create_only`` fields are written on the insert and left alone afterwards. The demo
+    password is the reason: re-hashing it on every run would rewrite the same row on a
+    second pass and make an idempotent seed look busy.
+    """
     existing = await session.get(model, row_id)
     if existing is None:
-        row = model(id=row_id, **values)
+        row = model(id=row_id, **values, **(create_only or {}))
         session.add(row)
         await session.flush()
         return row, True
@@ -333,7 +345,6 @@ async def seed(session: AsyncSession) -> SeedReport:
         {
             "email": DEMO_USER_EMAIL,
             "display_name": "Ada (judge demo)",
-            "hashed_password": hash_password(DEMO_PASSWORD),
             "role": "both",
             "bio": "Judge demo profile. Everything here is seeded data, not a real account.",
             "latitude": NEIGHBOURHOOD_CENTRE[0],
@@ -352,6 +363,7 @@ async def seed(session: AsyncSession) -> SeedReport:
             "concordium_zk_proof_ref": "demo-proof-ref-ada-0009",
             "verified_at": now - timedelta(days=3),
         },
+        create_only={"hashed_password": hash_password(DEMO_PASSWORD)},
     )
     report.count("users", created=created)
     from ..core.geo import to_wkt_point
