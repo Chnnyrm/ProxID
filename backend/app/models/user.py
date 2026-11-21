@@ -11,8 +11,9 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from geoalchemy2 import Geography
 from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, String, Text
-from sqlalchemy.dialects.postgresql import JSONB, UUID
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -46,6 +47,11 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     neighbourhood: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # The same position as a PostGIS geography point. Provider proximity is a
+    # spheroid distance (ST_DistanceSphere), which needs the geometry.
+    last_location: Mapped[object | None] = mapped_column(
+        Geography(geometry_type="POINT", srid=4326), nullable=True
+    )
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     # -- Concordium ----------------------------------------------------------
@@ -69,6 +75,7 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     __table_args__ = (
         Index("ix_users_latitude_longitude", "latitude", "longitude"),
         Index("ix_users_concordium_verified", "concordium_verified"),
+        Index("ix_users_last_location", "last_location", postgresql_using="gist"),
         Index("ix_users_is_demo", "is_demo"),
     )
 

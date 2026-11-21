@@ -57,6 +57,9 @@ class X402Receipt(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     settled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Why the last attempt did not settle, in words an engineer can act on.
     failure_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Makes a double-clicked "pay" button produce one receipt, not two. Unique, so
+    # the database enforces it rather than a read-then-write check.
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True, unique=True)
 
     __table_args__ = (
         CheckConstraint(

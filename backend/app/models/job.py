@@ -13,6 +13,7 @@ from decimal import Decimal
 from geoalchemy2 import Geography
 from sqlalchemy import (
     CheckConstraint,
+    Integer,
     DateTime,
     ForeignKey,
     Index,
@@ -71,6 +72,13 @@ class Job(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # How many messages this job's room holds. Maintained by the message service
+    # inside the same transaction as the insert, so the browse ranking can order
+    # by activity without joining another table.
+    message_count: Mapped[int] = mapped_column(
+        Integer, nullable=False, default=0, server_default="0"
+    )
 
     # The settlement hash of the x402 payment that closed this job. Null until a
     # real settlement has happened; a demo receipt never writes a fake hash here.

@@ -12,8 +12,10 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from geoalchemy2 import Geography, Geometry
 from geoalchemy2.elements import WKBElement, WKTElement
 from geoalchemy2.shape import to_shape
+from sqlalchemy import cast, func
 
 
 def to_wkt_point(latitude: float | None, longitude: float | None) -> WKTElement | None:
@@ -81,3 +83,23 @@ def extract_coordinates(location_value: Any) -> tuple[float | None, float | None
         except (TypeError, ValueError):
             return None, None
     return None, None
+
+
+def geography_point(longitude: float, latitude: float):
+    """A geography point as a SQL expression, with both numbers bound.
+
+    Neither coordinate is interpolated into SQL text: they arrive as bind
+    parameters and PostGIS builds the point from them. ``ST_Distance`` and
+    ``ST_DWithin`` against this expression return metres, because the operands are
+    geography rather than geometry.
+    """
+    return cast(func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326), Geography)
+
+
+def geometry_point(longitude: float, latitude: float):
+    """The same point as a geometry expression.
+
+    Needed because ``ST_DistanceSphere`` is defined on geometry only. The numbers
+    are still bound, never interpolated.
+    """
+    return cast(func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326), Geometry)
