@@ -82,9 +82,7 @@ async def my_verification(
     current_user: CurrentUser = Depends(get_current_user),
 ) -> VerificationOut | None:
     """The caller's latest verification attempt, or nothing when there was none."""
-    from ....crud import verification_request as request_crud
-
-    request = await request_crud.get_latest_for_user(db, current_user.id)
+    request = await container.verification.latest_for_user(db, current_user)
     if request is None:
         return None
     return VerificationOut(

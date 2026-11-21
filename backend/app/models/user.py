@@ -50,7 +50,7 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     # The same position as a PostGIS geography point. Provider proximity is a
     # spheroid distance (ST_DistanceSphere), which needs the geometry.
     last_location: Mapped[object | None] = mapped_column(
-        Geography(geometry_type="POINT", srid=4326), nullable=True
+        Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=True
     )
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

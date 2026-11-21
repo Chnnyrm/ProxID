@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from .common import InputModel, Money, OutputModel, TrimmedText
+from .base import InputModel, Money, OutputModel, TrimmedText
 from .message import MessageOut
 from .user import UserOut
 

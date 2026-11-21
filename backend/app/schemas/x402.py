@@ -13,7 +13,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from .common import InputModel, OutputModel
+from .base import InputModel, OutputModel
 
 X402Status = Literal["not_configured", "pending", "settled", "failed", "demo"]
 

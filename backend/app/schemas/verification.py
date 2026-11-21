@@ -7,7 +7,7 @@ from typing import Literal
 
 from pydantic import Field
 
-from .common import InputModel, OutputModel
+from .base import InputModel, OutputModel
 
 
 class VerificationRequestIn(InputModel):

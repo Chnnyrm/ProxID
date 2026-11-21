@@ -50,7 +50,7 @@ class Database:
         The commit boundary is the use case, never the crud function: a crud
         function flushes and lets its caller decide.
         """
-        session = await self._session_factory()
+        session = self._session_factory()
         try:
             yield session
             await session.commit()

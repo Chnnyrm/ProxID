@@ -37,7 +37,7 @@ class ServiceListing(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     max_price: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="NGN")
     location: Mapped[object | None] = mapped_column(
-        Geography(geometry_type="POINT", srid=4326), nullable=True
+        Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=True
     )
     radius_km: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False, default=5)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)

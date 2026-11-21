@@ -67,7 +67,7 @@ class Job(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     currency: Mapped[str] = mapped_column(String(3), nullable=False, default="NGN")
     status: Mapped[str] = mapped_column(String(24), nullable=False, default="open")
     location: Mapped[object | None] = mapped_column(
-        Geography(geometry_type="POINT", srid=4326), nullable=True
+        Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=True
     )
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

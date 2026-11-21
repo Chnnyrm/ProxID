@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....core.container import Container
 from ....core.errors import NotConfiguredError
-from ....schemas.common import MessageOnly
+from ....schemas.base import MessageOnly
 from ....schemas.user import GoogleCredential, SessionOut, UserLogin, UserRegister
 from ...deps import (
     clear_session_cookies,

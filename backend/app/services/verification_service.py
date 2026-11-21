@@ -245,6 +245,16 @@ class VerificationService:
             proof_reference=outcome.proof_reference,
         )
 
+    async def latest_for_user(
+        self, db: AsyncSession, actor: User
+    ) -> VerificationRequest | None:
+        """The caller's most recent verification attempt, or None.
+
+        Lives here rather than in the router so the transport layer never touches the
+        persistence layer.
+        """
+        return await request_crud.get_latest_for_user(db, actor.id)
+
     def demo_view(self, message: str) -> VerificationView | None:
         """No demo verification is fabricated. Returned for symmetry with the API."""
         return None

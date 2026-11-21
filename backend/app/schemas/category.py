@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from .common import OutputModel
+from .base import OutputModel
 
 
 class CategoryOut(OutputModel):

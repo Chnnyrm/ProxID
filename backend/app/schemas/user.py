@@ -8,7 +8,7 @@ from typing import Literal
 
 from pydantic import EmailStr, Field, field_validator
 
-from .common import InputModel, OutputModel, TrimmedText
+from .base import InputModel, OutputModel, TrimmedText
 
 #: Password bounds. 12 is the house floor; the upper bound keeps bcrypt's 72-byte
 #: truncation from silently discarding the end of a long passphrase.

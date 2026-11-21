@@ -7,7 +7,7 @@ from datetime import datetime
 
 from pydantic import Field
 
-from .common import InputModel, OutputModel, TrimmedText
+from .base import InputModel, OutputModel, TrimmedText
 
 
 class MessageCreate(TrimmedText):
