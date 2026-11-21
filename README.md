@@ -169,14 +169,6 @@ Eight of the nine x402 validation rules are enforced here as testable code. The 
 the sender signature, belongs to the facilitator, and we say so rather than claiming a
 check we cannot perform.
 
-## Origin of the code
-
-This is a new repository. The marketplace core, meaning the PostGIS proximity
-matching, the job lifecycle, messaging, the agent tool loop and the map, is ported
-from an earlier project by the same author. The Concordium layers, meaning identity,
-registry, audit and payments, are written new for this hackathon.
-
-The organisers confirmed existing codebases are allowed.
 
 ## Licence
 

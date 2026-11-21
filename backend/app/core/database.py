@@ -34,6 +34,16 @@ class Database:
             max_overflow=settings.DATABASE_MAX_OVERFLOW,
             pool_timeout=settings.DATABASE_POOL_TIMEOUT_SECONDS,
             pool_pre_ping=True,
+            # Neon and similar poolers run in transaction mode, where a prepared
+            # statement cannot be assumed to survive on the connection that runs it.
+            # Without this the first query after a pool switch fails with
+            # "connection was closed in the middle of operation", which is exactly
+            # what happened against Neon's pooled host. Serverless deployments must
+            # use the pooled host, so the cache stays off.
+            connect_args={
+                "statement_cache_size": 0,
+                "prepared_statement_cache_size": 0,
+            },
         )
         self._session_factory = async_sessionmaker(
             self._engine, class_=AsyncSession, expire_on_commit=False
