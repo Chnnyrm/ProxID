@@ -121,8 +121,10 @@ async def demo_login(
 ) -> SessionOut:
     """Sign into the seeded judge profile. No OAuth, no wallet, no password.
 
-    Mounted only when ``FEATURE_JUDGE_DEMO`` is on. The account it signs into is
-    marked ``is_demo`` in the database, so everything reachable from it says so.
+    The route is always mounted so a client's generated types do not change with a
+    deployment's flags, and it refuses with a plain sentence when
+    ``FEATURE_JUDGE_DEMO`` is off. The account it signs into is marked ``is_demo`` in
+    the database, so everything reachable from it says so.
     """
     if not container.settings.FEATURE_JUDGE_DEMO:
         raise NotConfiguredError("the judge demo", operation="demo_login")

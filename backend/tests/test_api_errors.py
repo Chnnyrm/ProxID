@@ -70,8 +70,12 @@ def test_every_response_carries_a_correlation_id_header() -> None:
     assert response.headers["x-frame-options"] == "DENY"
 
 
-def test_the_demo_login_route_exists_only_when_the_flag_is_on() -> None:
-    """A feature flag that hides a route must actually remove it, not just 403 it."""
+def test_the_demo_login_route_is_mounted_whatever_the_flag_says() -> None:
+    """The route is always present so client types are stable; the flag decides behaviour.
+
+    Hiding a route behind a flag would silently change the generated API surface between
+    deployments, which is worse than a stable path that refuses with a sentence.
+    """
     on = Settings(
         APP_ENV="test",
         SECRET_KEY="test-only-secret-key-that-is-long-enough-32",

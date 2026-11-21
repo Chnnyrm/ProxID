@@ -1,0 +1,22 @@
+# Local development database: Postgres with PostGIS, which the proximity queries need.
+# The first migration also runs CREATE EXTENSION IF NOT EXISTS postgis, so a managed
+# Postgres without the extension preinstalled (Neon, Supabase free tiers) works too.
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: proxid
+    ports:
+      - "5432:5432"
+    volumes:
+      - proxid-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d proxid"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  proxid-db:
