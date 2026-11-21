@@ -1,0 +1,225 @@
+/*
+ * ProxID design system.
+ *
+ * Three colours carry everything: Soft Sand, Mocha Green, Watermelon Pink. They are
+ * declared once as custom properties and consumed through Tailwind, so no component
+ * holds a colour literal and a theme swap is one class on the document.
+ *
+ * Contrast, measured (WCAG 2.1 relative luminance), light theme:
+ *   ink #474329 on page #F0E5DB .......... 8.05:1  body text    AA
+ *   ink #474329 on surface #FAF4ED ....... 9.14:1  body text    AA
+ *   muted #5C5738 on page #F0E5DB ........ 5.89:1  body text    AA
+ *   muted #5C5738 on surface #FAF4ED ..... 6.69:1  body text    AA
+ *   accent-ink #1C1B12 on accent #FC75B4 . 6.87:1  body text    AA
+ *   line #7A7350 on page #F0E5DB ......... 3.85:1  UI edge      AA non-text
+ *   line #7A7350 on surface #FAF4ED ...... 4.37:1  UI edge      AA non-text
+ *   accent #FC75B4 on page #F0E5DB ....... 2.03:1  NOT text, NOT a UI edge on its own
+ *
+ * Dark theme:
+ *   text #F0E5DB on page #474329 ......... 8.05:1  body text    AA
+ *   text #F0E5DB on surface #2A281A ..... 11.95:1  body text    AA
+ *   text #F0E5DB on sunken #1C1B12 ...... 13.94:1  body text    AA
+ *   muted #C4B7A8 on page #474329 ........ 5.08:1  body text    AA
+ *   muted #C4B7A8 on surface #2A281A ..... 7.54:1  body text    AA
+ *   accent-ink #1C1B12 on accent #FC75B4 . 6.87:1  body text    AA
+ *   accent #FC75B4 on page #474329 ....... 3.97:1  large text and UI edges only
+ *   accent #FC75B4 on surface #2A281A .... 5.89:1  body text    AA
+ *   line #9A8E79 on page #474329 ......... 3.10:1  UI edge      AA non-text
+ *
+ * Two consequences the design obeys:
+ *  1. Pink is never body text on Sand (2.03:1). It is a fill, a border and an accent,
+ *     and text on it is always the dark ink (6.87:1).
+ *  2. Pink alone is under 3:1 as a focus indicator on Sand, so a focus ring is pink
+ *     with a mocha keyline outside it. See the focus-visible rule below.
+ */
+
+@import '@fontsource-variable/geist';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+
+  /* Light theme: sand is the canvas, mocha is the ink and the structure. */
+  --page: #f0e5db;
+  --surface: #faf4ed;
+  --surface-sunken: #d9c9ba;
+  --text: #474329;
+  --text-muted: #5c5738;
+  --border: #7a7350;
+  --border-strong: #474329;
+  --accent: #fc75b4;
+  --accent-ink: #1c1b12;
+  --accent-wash: #fbebf3;
+  --shadow: 0 1px 2px rgb(71 67 41 / 0.08), 0 8px 24px rgb(71 67 41 / 0.06);
+
+  /* Motion. One curve for the whole product. */
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --duration-fast: 140ms;
+  --duration: 220ms;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Dark theme: mocha is the base surface, sand is the ink. Cards sit darker. */
+  --page: #474329;
+  --surface: #2a281a;
+  --surface-sunken: #1c1b12;
+  --text: #f0e5db;
+  --text-muted: #c4b7a8;
+  --border: #9a8e79;
+  --border-strong: #f0e5db;
+  --accent: #fc75b4;
+  --accent-ink: #1c1b12;
+  --accent-wash: #3a1e2b;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.35), 0 10px 30px rgb(0 0 0 / 0.3);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  background-color: var(--page);
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--page);
+  color: var(--text);
+  font-family: 'Geist Variable', Geist, system-ui, sans-serif;
+  font-weight: 400;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  /* Nothing may scroll sideways at 390px. */
+  overflow-x: hidden;
+}
+
+/*
+ * Focus. Pink is the visible accent but it is 2.03:1 against Sand, which fails the 3:1
+ * a focus indicator needs. The ring is therefore pink with a mocha keyline outside it,
+ * so the indicator as a whole always has a component well above 3:1 against the page.
+ */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--text);
+  border-radius: 6px;
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* Motion respects the operating system's preference, and only transform/opacity move. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Skeletons, not spinners: a shape that becomes the content. */
+@keyframes proxid-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.skeleton {
+  background-color: var(--surface-sunken);
+  border-radius: 8px;
+  animation: proxid-pulse 1.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton {
+    animation: none;
+    opacity: 0.6;
+  }
+}
+
+/*
+ * Map theming. OpenStreetMap raster tiles are white, which glares inside a mocha page.
+ * The filter inverts their luminance and rotates the hue back so land stays land and
+ * water stays water, then desaturates so the map sits inside the palette rather than
+ * competing with it. No paid tile key is used.
+ */
+.map-shell {
+  background-color: var(--surface-sunken);
+}
+
+[data-theme='dark'] .map-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.65);
+}
+
+.map-tiles {
+  transition: filter var(--duration) var(--ease);
+}
+
+/* Leaflet's own chrome has hard-coded whites and greys. */
+.leaflet-container {
+  background: var(--surface-sunken);
+  font-family: inherit;
+  color: var(--text);
+}
+
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--surface) 88%, transparent) !important;
+  color: var(--text-muted) !important;
+  font-size: 10px;
+}
+
+.leaflet-control-attribution a {
+  color: var(--text) !important;
+}
+
+.leaflet-bar,
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+.leaflet-bar a {
+  background: var(--surface) !important;
+  color: var(--text) !important;
+  border-bottom-color: var(--border) !important;
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* A pin that reads as active without needing a second colour. */
+.pin-active {
+  animation: proxid-pulse 1.8s ease-in-out infinite;
+}
+
+/* Utility: a hairline that survives both themes. */
+.hairline {
+  border: 1px solid var(--border);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+}
