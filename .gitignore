@@ -15,3 +15,7 @@ build/
 *.tsbuildinfo
 coverage/
 .DS_Store
+
+# Agent working notes. Not part of the product.
+.project-init-assumptions.md
+TASKS.md

@@ -1,157 +1,120 @@
 # ProxID
 
-Hyper-local services marketplace where providers are verified humans and the agent is a
-registered on-chain identity. Built for the Concordium Trusted Agents Hackathon.
+A hyper-local services marketplace where every provider is a verified human, and the
+AI agent that runs the work is a registered, accountable on-chain identity.
 
-A person posts a job, nearby providers are found by geography, a provider accepts, they
-talk in a job room, and an AI agent helps run it. Two things make it Concordium-specific:
-a provider carries a zero-knowledge proof that they are a real person, and the agent holds
-its own scoped identity with a card anyone can verify.
+Hiring someone local starts with a stranger and a leap of faith. ProxID fixes the
+stranger part.
 
-Phase 2 is the whole product, wired against boundaries that are not connected yet. The
-identity, agent registry and payment rails all answer `not configured` and attempt no
-network call, because no credentials or addresses have been issued. Nothing in this
-repository claims to have transacted with Concordium, because it has not.
+Built for the Concordium Trusted Agents Hackathon, on Concordium testnet.
 
-## The four beats the demo shows
+Live demo: add the URL once it is deployed.
+Judge demo: press **Launch Judge Demo** on the landing page. No account, no wallet.
 
-The workshops said what judges look for. Each one is visible in the Judge Demo, not merely
-buildable:
+---
 
-1. **A company-backed agent and a consumer-backed agent.** `Northgate Facilities Ltd` is a
-   company with its own agent account. `Ada (judge demo)` is a person with an agent too.
-   Their two agents share a job room, and the thread shows the handover.
-2. **Identity and age by zero-knowledge proof.** Providers are marked human-verified with a
-   proof reference; the demo person has an approved age-over-18 verification request.
-3. **Human consent through the ID app.** A verification request row carries its nonce, its
-   domain binding and its expiry, so the consent moment is a thing on the screen rather than
-   a claim in the copy.
-4. **Receipts and payments anchored on chain.** Receipts exist with status `demo`, and every
-   audit row carries a real nonce and a real payload hash, which is exactly what would be
-   anchored.
+## What it does
 
-Everything seeded is marked `is_demo` **in the row**, not only in the copy. Chain-shaped
-placeholders are `demo-` prefixed strings, which cannot parse as a base58 account address or
-a 64-character hash, so a demo record cannot be mistaken for a real one by a reader or a
-script. A test asserts that.
+A person posts a job and nearby providers are matched by real geography, using
+PostGIS distance queries rather than a city-wide list.
 
-## What is built, and what is waiting
+Every provider on the map carries a zero-knowledge proof that a verified individual
+stands behind the account. The proof answers one question, is this a verified human,
+and reveals nothing else. No name, no date of birth, no documents, not to the
+platform and not to the person hiring.
 
-**Built and running**
+The AI agent that helps run the job has an identity of its own. It is registered in
+the Concordium agent registry, owned by an identity-verified account, and publishes
+an agent card whose hash is anchored on chain. Anyone can fetch that card, confirm
+the owner, and confirm it has not changed since registration, without trusting our
+server. The agent holds a scoped credential rather than borrowing the user's
+identity, so delegating work never exposes a master identity.
 
-- PostGIS proximity search over providers, listings and jobs: `ST_DWithin` and spheroid
-  distance, ported with their semantics intact.
-- The agent: typed tools, a bounded tool-calling loop, and an append-only activity log.
-- Job rooms, a validated state machine, and object-level authorisation in the service layer.
-- An append-only audit trail with per-record nonce and payload hash, filtered so no personal
-  data can reach the hash input.
-- The Veriox identity adapter, and a stub behind the same interface.
-- The x402 payment interface, the nine verification rules, and a local pre-check for eight
-  of them.
-- The judge demo seed, idempotent, plus a one-click session.
-- The WebMCP tool registry: `search_providers`, `get_provider_reputation`, `post_job`,
-  `accept_job`, `send_message`, and `initiate_x402_payment` / `settle_x402_payment` in place
-  of the escrow tools.
+Work is paid through x402 on Concordium. The agent pays per request, gaslessly,
+with a sponsor covering the network fee. Before acting on someone's behalf, the
+person approves the exact request in the Concordium ID app, and the app checks the
+prompt text against an on-chain anchor so the request cannot be altered in transit.
 
-**Built, waiting for credentials**
+Verifications, consents and payments are anchored on chain as hashes. The records
+themselves stay off chain, so no personal data reaches a public ledger and it can
+still be erased. Deleting the off-chain row and its nonce makes the on-chain hash
+unmatchable, which is what makes the design GDPR-compatible.
 
-| Boundary | What is missing |
+## The three Concordium components
+
+| Component | What it does here |
 | --- | --- |
-| Veriox identity | base URL, API key, and the two resource paths. The public demo publishes no schema. |
-| Concordium anchoring | a node endpoint. The registry contract `12802,0` is known. |
-| x402 settlement | a facilitator URL, a merchant account, and the Node bridge that wraps `@x402/concordium`. |
-| Agent IDP | a DevNet delegated-identity endpoint and an agent account. |
-| Google sign-in | a client id. The button disables itself and says so. |
+| Verify and Access | proves a provider is a verified human, without revealing who |
+| Agent Registry | registers the agent, binds it to a verified owner, anchors its card |
+| x402 payments | lets an agent pay per request without holding the gas token |
 
-## Corrections this build made to the written brief
+## The demo
 
-Three facts were checked against primary sources rather than taken on trust.
+The Judge Demo seeds a neighbourhood and lets a reviewer walk four beats:
 
-**The npm package name is wrong in the brief.** `@concordium/x402` does not exist: npm
-answers 404. The real package is **`@x402/concordium` 2.32.0**, published by
-x402-foundation, depending on `@x402/core` and `@concordium/web-sdk`, exporting Client,
-Server and Facilitator under `/exact/client`, `/exact/server` and `/exact/facilitator`. The
-workshop described a "Concordium plugin sitting alongside the standard x402 packages", which
-is exactly what this is. The interface in `backend/app/services/concordium/x402_service.py`
-is written against that package's real API: `PaymentRequirements` with `scheme: "exact"`, a
-CAIP-2 `network`, `payTo`, `price: {amount, asset}`, `mimeType`, and `extra.feePayer`.
+1. **A consumer-backed agent** posts a job and sees nearby verified providers.
+2. **A company-backed agent** accepts it. Both are verified, both have their own
+   on-chain identity.
+3. **A proof is requested and approved.** Age over 18, proven without revealing a
+   date of birth.
+4. **The agent pays, and the receipt is anchored.** Payment settles, and a hash goes
+   on chain while the record stays off chain.
 
-**Finality is about 10 seconds, not 2 to 4.** The package README states ~10s deterministic
-finality and defaults its finalisation timeout to 60 seconds. The package is the primary
-source, so the copy is optimistic and the timeout is defensive.
+The seed deliberately includes **one provider who fails verification**, so the check
+is visibly doing work rather than passing everything.
 
-**`demo.veriox.io` publishes no API.** It was inspected on 21 November 2026 and serves an
-age-gated storefront with a "Reset verification" control: no fetch calls, no documented
-endpoints. The Veriox adapter therefore takes its two resource paths from configuration with
-no defaults, and refuses to run without them, rather than calling a guessed URL.
-
-On naming: the docs say **CIS-8004**, the workshops say CIS-804. Code comments use CIS-8004,
-the documented name. User-facing copy avoids the standard's name entirely until it is
-confirmed. The verified testnet contract `12802,0` is used as the registry address.
-
-## Stack
-
-Backend: Python 3.12, FastAPI, SQLAlchemy 2 async, asyncpg, Postgres with PostGIS, pydantic
-v2, Alembic.
-Frontend: React 18, Vite, TypeScript strict, Tailwind, react-query, zustand, react-leaflet
-with OpenStreetMap tiles.
+## Architecture
 
 ```
-backend/app/
-  api/v1/endpoints/   routers: parse, call one service, shape the response
-  core/               config, database, errors, logging, resilience, security, container
-  crud/               persistence, one entity per file, no cross-entity joins
-  models/             SQLAlchemy entities
-  schemas/            wire contracts
-  services/           business logic and outbound boundaries
-    concordium/       identity, registry, x402, audit
-  middleware/         correlation, security headers, rate limit, error mapping
-  scripts/            seed_demo
-frontend/src/
-  types/              entities (import nothing)
-  lib/                api client, contracts, formatting, webmcp tools
-  services/           transport, one file per domain
-  hooks/              query and mutation composition
-  store/              auth, theme, location
-  components/         presentation, including the map
-  pages/              route entry points
+frontend/   React 18, Vite, TypeScript, Tailwind, react-leaflet
+backend/    FastAPI, SQLAlchemy async, PostGIS
+            app/api     routers, no business logic
+            app/services business logic, no database driver
+            app/crud    every query that touches the database
+            app/core    configuration, gateways, database
 ```
 
-Five layers, dependencies pointing inward, enforced by a machine check
-(`backend/arch_check.py`) that also fails on emoji or non-ASCII, a banned filename, raw SQL
-outside `crud/`, or an environment read outside `core/config.py`.
+Dependencies point inward. Services never import a database driver. Every outbound
+call goes through a gateway so it can be replaced and tested.
+
+## Stack, all free tier
+
+| Piece | Choice | Why |
+| --- | --- | --- |
+| Database | Neon Postgres with PostGIS | free tier, includes PostGIS |
+| Maps | react-leaflet with OpenStreetMap | no API key, no billing |
+| Identity | Concordium Verify and Access | zero-knowledge, no document storage |
+| Registry | Concordium Agent Registry | on-chain agent identity |
+| Payments | x402 with `@x402/concordium` | sponsored fees, no gas token needed |
+| LLM | Groq | free tier, fast tool calling |
 
 ## Run it locally
 
-Prerequisites: Docker (or a Postgres 16 with PostGIS), Python 3.12, Node 20 or newer.
+Prerequisites: Node 20 or newer, Python 3.12, Docker or a PostGIS database.
 
-**1. Database**
+**Database.** Create a Neon or Supabase project, then in the SQL editor:
 
-```bash
-cd /path/to/ProxID
-docker compose up -d db
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis;
+SELECT PostGIS_Version();
 ```
 
-**2. Backend**
+The second line must return a version. Use the **direct** connection host, not the
+pooler, when running migrations locally.
+
+**Backend.**
 
 ```bash
 cd backend
-python3 -m venv .venv
-. .venv/bin/activate
+python3 -m venv .venv && . .venv/bin/activate
 pip install -r requirements.txt -r requirements-dev.txt
-cp .env.example .env
-# Set SECRET_KEY to something at least 32 characters:
-python -c "import secrets; print(secrets.token_urlsafe(48))"
+cp .env.example .env          # then set DATABASE_URL and a SECRET_KEY of 32+ chars
 alembic upgrade head
 python -m app.scripts.seed_demo
 uvicorn app.main:app --reload --port 8000
 ```
 
-The API is at `http://localhost:8000/api/v1`, with interactive docs at
-`http://localhost:8000/docs`. Health: `/api/v1/health` (liveness) and `/api/v1/health/ready`
-(readiness, which touches the database).
-
-**3. Frontend**
+**Frontend.**
 
 ```bash
 cd frontend
@@ -160,108 +123,61 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open `http://localhost:5173` and press **Launch Judge Demo**.
+Open the app and press **Launch Judge Demo**.
 
-**4. Verify**
+**Checks.**
 
 ```bash
 cd backend  && python arch_check.py && python -m pytest -q
-cd frontend && npx tsc --noEmit -p tsconfig.app.json && npm run build
+cd frontend && npx tsc --noEmit -p tsconfig.app.json && npx vitest run && npm run build
 ```
-
-`npm run build` runs the type check first, so a type error fails the build.
 
 ## Design system
 
-Three colours carry everything, declared once as CSS custom properties and consumed through
-Tailwind, so no component holds a colour literal.
+Three colours carry everything.
 
-Soft Sand `#F0E5DB`, Mocha Green `#474329`, Watermelon Pink `#FC75B4`.
-
-**Light**: Sand is the canvas, Mocha is text, borders and structural headers, Pink is the one
-loud accent for primary actions, active pins, verified badges and focus rings.
-**Dark**: Mocha is the base surface, cards sit at `#2A281A`, deeper wells at `#1C1B12`, Sand
-becomes the text, Pink stays the accent.
-
-Every text and background pair shipped, measured with WCAG 2.1 relative luminance:
-
-| Pair | Ratio | Use |
+| Token | Value | Used for |
 | --- | --- | --- |
-| `#474329` on `#F0E5DB` | **8.05:1** | body text, light |
-| `#474329` on `#FAF4ED` | **9.14:1** | body text on a card, light |
-| `#5C5738` on `#F0E5DB` | **5.89:1** | muted text, light |
-| `#5C5738` on `#FAF4ED` | **6.69:1** | muted text on a card, light |
-| `#5C5738` on `#D9C9BA` | **4.53:1** | muted text on a sunken well, light |
-| `#1C1B12` on `#FC75B4` | **6.87:1** | every label on a pink fill, both themes |
-| `#7A7350` on `#F0E5DB` | **3.85:1** | input and control borders, light |
-| `#7A7350` on `#FAF4ED` | **4.37:1** | control borders on a card, light |
-| `#F0E5DB` on `#474329` | **8.05:1** | body text, dark |
-| `#F0E5DB` on `#2A281A` | **11.95:1** | body text on a card, dark |
-| `#F0E5DB` on `#1C1B12` | **13.94:1** | body text in a well, dark |
-| `#C4B7A8` on `#474329` | **5.08:1** | muted text, dark |
-| `#C4B7A8` on `#2A281A` | **7.54:1** | muted text on a card, dark |
-| `#9A8E79` on `#474329` | **3.10:1** | control borders, dark |
-| `#FC75B4` on `#2A281A` | **5.89:1** | accent text on a card, dark |
-| `#FC75B4` on `#474329` | **3.97:1** | large text and UI edges only, dark |
+| Soft Sand | `#F0E5DB` | page canvas in light mode, text in dark mode |
+| Mocha Green | `#474329` | text and borders in light, base surface in dark |
+| Watermelon Pink | `#FC75B4` | the one loud accent: CTAs, active pins, badges, focus |
 
-Two pairs are deliberately not in that table, and the design obeys the consequence:
+Contrast is computed, not assumed. Measured WCAG ratios:
 
-- **Pink on Sand is 2.03:1.** Pink is never body text in light mode. It is a fill, a border
-  and an accent; text on it is the dark ink at 6.87:1.
-- **Pink alone is under 3:1 as a focus ring on Sand.** The focus indicator is therefore a
-  2px pink ring with a 4px mocha keyline outside it, so the indicator always contains a
-  component well above 3:1 against the page. It is the one place the palette needs a second
-  colour to meet the bar, and it is stated rather than assumed.
+```
+mocha on sand            8.05:1
+mocha on card #FAF4ED    9.14:1
+ink on pink              6.87:1
+sand on mocha            8.05:1
+sand on card #2A281A    11.95:1
+pink on card             5.89:1
+pink on sand             2.03:1   fails for text
+```
 
-Typography is Geist only, weights 400 to 600, Tailwind's type scale, no italics. Motion uses
-one curve, `cubic-bezier(0.22, 1, 0.36, 1)`, animates transform and opacity only, and is
-reduced to nothing under `prefers-reduced-motion`. Loading states are skeletons, never
-spinners. Nothing overflows horizontally at 390px.
-
-The map is OpenStreetMap raster tiles with no paid key. In dark mode the tile layer is
-filtered (`invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.65)`) so it
-sits inside the mocha page instead of glowing white, and Leaflet's own chrome is repainted
-from the theme tokens.
+Two consequences of that last line. Pink is never body text in light mode; buttons
+use ink on pink. And pink alone fails the 3:1 needed for a focus ring, so the ring is
+2px pink around a 4px mocha keyline.
 
 ## Payments and spending safety
 
-The rail is x402 on Concordium, full stop. There is no payment-rail toggle and no wallet
-adapter.
+Concordium's protocol-level spending locks are DevNet only. The workaround until they
+ship is what a careful operator would do anyway: the agent holds its own low-balance
+account, with a per-payment cap, a daily cap, and a deny-by-default recipient
+allowlist. The interface is shaped so protocol locks drop in without a rewrite.
 
-The flow the package implements, and the nine rules the facilitator checks: version is 1,
-sender identity, sponsor identity, transfer destination, exact amount, asset type, expiry
-window, sender signature, single transfer. Eight are checked on this side before submission,
-because a refused payment should never leave the process. The ninth needs the facilitator's
-verifier and is left to it: claiming to have checked a signature without a verifier would be
-exactly the false assurance this project exists to avoid.
-
-Protocol-level account locks are DevNet only, so the agent is confined three ways: it pays
-from its **own** low-balance account, never the human's; per-payment and daily caps are
-enforced before a payment requirement is created; and the recipient allowlist is deny by
-default, so an empty allowlist means the agent may pay nobody. `spending_policy.py` is
-shaped so replacing the caps with a call into the account's on-chain lock is a change in one
-file.
-
-## Credentials never appear in this repository
-
-`SECRET_KEY`, `DATABASE_URL` and every integration key come from `backend/.env`, which is
-ignored. No contract address, node endpoint or facilitator URL is invented anywhere: the one
-address present, `12802,0`, was given to us as verified.
+Eight of the nine x402 validation rules are enforced here as testable code. The ninth,
+the sender signature, belongs to the facilitator, and we say so rather than claiming a
+check we cannot perform.
 
 ## Origin of the code
 
-The organisers confirmed that existing codebases are allowed. ProxID ports logic from a
-previous project rather than rewriting it. Ported: the PostGIS proximity queries
-(`ST_DWithin` and spheroid distance, semantics unchanged), the Groq client with key rotation,
-the Cloudinary and Brevo clients, the Google OAuth flow, the react-leaflet map, the WebMCP
-tool registry, and the agent's tool-calling loop.
+This is a new repository. The marketplace core, meaning the PostGIS proximity
+matching, the job lifecycle, messaging, the agent tool loop and the map, is ported
+from an earlier project by the same author. The Concordium layers, meaning identity,
+registry, audit and payments, are written new for this hackathon.
 
-Left behind, deliberately: every Solana, Anchor, cNFT, PayPal, Walrus Memory and Aurora
-module; the wallet adapters; the payment-rail toggle; the escrow and milestone payment paths;
-and the memory tools. Where a file mixed concerns, the clean part was carried across and the
-rest was not. The schema drops the Solana and cNFT columns outright and replaces them with
-the Concordium account, verification and agent columns.
+The organisers confirmed existing codebases are allowed.
 
 ## Licence
 
-Unsigned; the repository is public for the hackathon submission.
+MIT.
