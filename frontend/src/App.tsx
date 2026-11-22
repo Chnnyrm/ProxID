@@ -4,7 +4,7 @@
  */
 
 import { useEffect } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { DemoBanner } from '@/components/DemoBanner'
 import { Header } from '@/components/Header'
@@ -20,6 +20,8 @@ import { useAuthStore } from '@/store/authStore'
 
 export function App() {
   const bootstrap = useAuthStore((state) => state.bootstrap)
+  const location = useLocation()
+  const isLanding = location.pathname === '/'
 
   useEffect(() => {
     void bootstrap()
@@ -43,11 +45,13 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <footer className="border-t border-line px-4 py-4">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs text-muted">
-          <span>ProxID. Local work, verified people.</span>
-        </div>
-      </footer>
+      {!isLanding && (
+        <footer className="border-t border-line px-4 py-4">
+          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs text-muted">
+            <span>ProxID. Local work, verified people.</span>
+          </div>
+        </footer>
+      )}
     </div>
   )
 }

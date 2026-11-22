@@ -138,6 +138,15 @@ body {
   }
 }
 
+@keyframes proxid-marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-33.333333%);
+  }
+}
+
 .skeleton {
   background-color: var(--surface-sunken);
   border-radius: 8px;
