@@ -26,6 +26,10 @@ logger = get_logger("cloudinary")
 #: The only file extensions accepted for a job photo or an avatar.
 ALLOWED_EXTENSIONS = (".jpg", ".jpeg", ".png", ".webp", ".heic")
 
+# The folders an upload may land in. Adding a purpose here is the only way to
+# create a new folder, so the media library cannot drift into a junk drawer.
+_MEDIA_PURPOSES = frozenset({"avatars", "services", "jobs", "agent", "misc"})
+
 
 class CloudinaryClient:
     """Uploads and deletes media. Inert until the feature is switched on."""
@@ -50,7 +54,13 @@ class CloudinaryClient:
             and self._settings.CLOUDINARY_API_SECRET
         )
 
-    async def upload(self, file_path: str, *, public_id: str | None = None) -> dict:
+    async def upload(
+        self,
+        file_path: str,
+        *,
+        public_id: str | None = None,
+        purpose: str | None = None,
+    ) -> dict:
         """Upload one file and return Cloudinary's response.
 
         Raises ``ValidationError`` for a disallowed extension and
@@ -78,7 +88,15 @@ class CloudinaryClient:
                 external_message="Upload a photo as JPG, PNG or WebP.",
             )
 
-        resolved_id = public_id or f"{self._settings.CLOUDINARY_UPLOAD_FOLDER}/{uuid.uuid4().hex}"
+        # Every asset lives under its own purpose folder so the Cloudinary media
+        # library stays readable: proxid/avatars, proxid/services, proxid/jobs,
+        # proxid/agent. Anything unrecognised falls back to proxid/misc rather than
+        # landing loose in the account root.
+        kind = (purpose or "misc").strip().lower()
+        if kind not in _MEDIA_PURPOSES:
+            kind = "misc"
+        prefix = self._settings.CLOUDINARY_UPLOAD_FOLDER.rstrip("/")
+        resolved_id = public_id or f"{prefix}/{kind}/{uuid.uuid4().hex}"
 
         async def call() -> dict:
             # The SDK is synchronous; a thread keeps the event loop responsive.
