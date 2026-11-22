@@ -195,6 +195,22 @@ class Settings(BaseSettings):
     # Added 2026-11-21. Removed when media upload is exercised in production.
     FEATURE_MEDIA_UPLOAD: bool = False
 
+    @field_validator("DATABASE_URL")
+    @classmethod
+    def _force_async_driver(cls, value: str) -> str:
+        """Accept the connection string a provider hands you.
+
+        Neon, Supabase and Heroku all print ``postgresql://`` or ``postgres://``.
+        SQLAlchemy's async engine refuses both, and the failure surfaces as a 500 on
+        every request rather than as a clear configuration error. Rewriting here means
+        an operator can paste the string the dashboard gave them and it works.
+        """
+        if value.startswith("postgres://"):
+            value = "postgresql://" + value[len("postgres://"):]
+        if value.startswith("postgresql://"):
+            value = "postgresql+asyncpg://" + value[len("postgresql://"):]
+        return value
+
     @field_validator("CORS_ORIGINS")
     @classmethod
     def _reject_wildcard_origin(cls, value: str) -> str:

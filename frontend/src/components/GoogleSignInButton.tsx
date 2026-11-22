@@ -105,6 +105,10 @@ export function GoogleSignInButton({
       setBusy(false)
     }
   }, [onToken])
+  // Render nothing at all when Google is not configured. A disabled button with
+  // setup instructions is a developer message on a customer's screen.
+  if (!configured) return null
+
 
   return (
     <div>
@@ -119,12 +123,6 @@ export function GoogleSignInButton({
       >
         Continue with Google
       </Button>
-      {!configured ? (
-        <p className="mt-1.5 text-xs text-muted">
-          Google sign-in is not configured on this deployment. Set VITE_GOOGLE_CLIENT_ID, or use
-          the email form.
-        </p>
-      ) : null}
       {problem ? (
         <p role="alert" className="mt-1.5 text-xs font-medium text-ink">
           {problem}
