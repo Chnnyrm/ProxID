@@ -48,7 +48,6 @@ export function LandingPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:py-12">
       <section className="animate-fade-rise">
-        <Badge tone="quiet">Concordium Trusted Agents Hackathon</Badge>
         <h1 className="mt-3 max-w-2xl text-3xl font-semibold leading-[1.15] tracking-tight text-ink sm:text-5xl">
           Local work, done by someone whose humanity is proven.
         </h1>
@@ -93,35 +92,6 @@ export function LandingPage() {
             </CardBody>
           </Card>
         ))}
-      </section>
-
-      <section className="mt-10 rounded-card border border-line bg-surface p-5">
-        <h2 className="text-base font-semibold text-ink">What is built, and what is waiting</h2>
-        <div className="mt-3 grid gap-4 text-sm sm:grid-cols-2">
-          <div>
-            <p className="font-medium text-ink">Built and running</p>
-            <ul className="mt-1 space-y-1 text-muted">
-              <li>PostGIS proximity search over providers and jobs</li>
-              <li>The agent with typed tools and a reviewable activity log</li>
-              <li>Job rooms, state machine and an append-only audit trail</li>
-              <li>The Veriox identity adapter, with a stub behind the same interface</li>
-              <li>The x402 payment interface and the nine verification rules</li>
-            </ul>
-          </div>
-          <div>
-            <p className="font-medium text-ink">Waiting for credentials</p>
-            <ul className="mt-1 space-y-1 text-muted">
-              <li>Veriox API paths and key: demo.veriox.io publishes no schema</li>
-              <li>A Concordium node endpoint for anchoring</li>
-              <li>An x402 facilitator and a merchant account</li>
-              <li>An agent account and an Agent IDP credential</li>
-            </ul>
-            <p className="mt-2 text-xs text-muted">
-              Until these exist, the interfaces answer &quot;not configured&quot; and no network call
-              is attempted.
-            </p>
-          </div>
-        </div>
       </section>
     </div>
   )

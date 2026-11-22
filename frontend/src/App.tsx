@@ -46,7 +46,6 @@ export function App() {
       <footer className="border-t border-line px-4 py-4">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-2 text-xs text-muted">
           <span>ProxID. Local work, verified people.</span>
-          <span>Builds on the Concordium Trusted Agents Hackathon stack.</span>
         </div>
       </footer>
     </div>
