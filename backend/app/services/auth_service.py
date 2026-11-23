@@ -237,7 +237,7 @@ class AuthService:
             db,
             session_id=uuid.UUID(token.session_id),
             user_id=user.id,
-            issued_at=datetime.now(issued.expires_at.tzinfo),
+            issued_at=datetime.now(token.expires_at.tzinfo),
             expires_at=token.expires_at,
             user_agent=user_agent,
         )
