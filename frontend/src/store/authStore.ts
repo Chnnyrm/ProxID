@@ -21,7 +21,7 @@ interface AuthState {
   error: string | null
   bootstrap: () => Promise<void>
   login: (email: string, password: string) => Promise<boolean>
-  register: (email: string, password: string, displayName: string, role: string) => Promise<boolean>
+  register: (email: string, password: string, displayName: string) => Promise<boolean>
   google: (accessToken: string) => Promise<boolean>
   demoLogin: () => Promise<boolean>
   logout: () => Promise<void>
@@ -60,10 +60,10 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  register: async (email, password, displayName, role) => {
+  register: async (email, password, displayName) => {
     set({ error: null })
     try {
-      const session = await authService.register(email, password, displayName, role)
+      const session = await authService.register(email, password, displayName)
       set({ user: session.user, status: 'signed-in' })
       return true
     } catch (error) {

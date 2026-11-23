@@ -62,7 +62,7 @@ async def create(
     display_name: str,
     hashed_password: str | None = None,
     google_id: str | None = None,
-    role: str = "client",
+    role: str = "both",
     avatar_url: str | None = None,
     is_demo: bool = False,
 ) -> User:

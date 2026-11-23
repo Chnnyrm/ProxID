@@ -1,0 +1,69 @@
+{
+  "name": "proxidAI",
+  "description": "An accountable agent for local services. Matches people with verified providers nearby, coordinates the work in a job room, and pays per action over x402 on Concordium. It carries its own registered identity, so anyone can check which verified human owns it.",
+  "url": "https://proxid-psi.vercel.app/agent-card.json",
+  "version": "1.0.0",
+  "defaultInputModes": [
+    "text/markdown",
+    "application/json"
+  ],
+  "defaultOutputModes": [
+    "text/markdown",
+    "application/json"
+  ],
+  "authentication": {
+    "schemes": []
+  },
+  "skills": [
+    {
+      "id": "match-providers",
+      "name": "Match providers",
+      "description": "Find verified providers within a radius using PostGIS proximity.",
+      "tags": []
+    },
+    {
+      "id": "run-job-room",
+      "name": "Run the job room",
+      "description": "Coordinate messages, milestones and completion between a client and a provider.",
+      "tags": []
+    },
+    {
+      "id": "pay-per-action",
+      "name": "Pay per action",
+      "description": "Settle a payment for a completed action over x402 with sponsored fees.",
+      "tags": []
+    }
+  ],
+  "capabilities": {
+    "streaming": false,
+    "pushNotifications": false,
+    "extensions": [
+      {
+        "uri": "https://docs.concordium.com/a2a-extensions/concordium-badge/v1",
+        "description": "Verified by Concordium badge — on-chain agent identity in a CIS-8004 registry",
+        "required": false,
+        "params": {
+          "tokenAddress": null,
+          "owner": {
+            "account": "ccd:4221332d34e1694168c2a0c0b3fd0f27:3LGnFKnaQpMCsTUd3LhefNJ1Fain5d4A31i3ZTzuRhzE9tLgXW"
+          },
+          "agentWallet": "ccd:4221332d34e1694168c2a0c0b3fd0f27:3LGnFKnaQpMCsTUd3LhefNJ1Fain5d4A31i3ZTzuRhzE9tLgXW",
+          "contracts": {
+            "cis8004": "ccd:4221332d34e1694168c2a0c0b3fd0f27:12802.0",
+            "cis8": "ccd:4221332d34e1694168c2a0c0b3fd0f27:12801.0"
+          },
+          "services": {
+            "mcp": "https://proxid-psi.vercel.app/api/v1/agent/tools"
+          },
+          "verify": "Resolve tokenAddress via CIS-8004 agent_of; confirm owner + status=Active + card SHA-256 == metadata_hash.",
+          "verification": {
+            "service": "Concordium Agent Registry",
+            "verifyUrl": "https://agent-registry-mcp.concordium.com/v1/badge-check/3LGnFKnaQpMCsTUd3LhefNJ1Fain5d4A31i3ZTzuRhzE9tLgXW",
+            "mcp": "https://agent-registry-mcp.concordium.com/mcp",
+            "docs": "https://docs.concordium.com/en/mainnet/technical-reference/agent-registry/concordium-badge.html"
+          }
+        }
+      }
+    ]
+  }
+}

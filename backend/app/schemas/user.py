@@ -22,7 +22,6 @@ class UserRegister(TrimmedText):
     email: EmailStr
     password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
     display_name: str = Field(min_length=2, max_length=80)
-    role: Literal["client", "provider", "both"] = "client"
 
     @field_validator("email")
     @classmethod

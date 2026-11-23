@@ -3,7 +3,7 @@
  * Provides direct URL access (/login) matching the AuthDialog form.
  */
 
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
@@ -19,7 +19,13 @@ export function LoginPage() {
   const { login, google, demoLogin, error, clearError, isLoading } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [fieldError, setFieldError] = useState<{ email?: string; password?: string }>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isDemoLoading, setIsDemoLoading] = useState(false)
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false)
+
+  const isBusy = isSubmitting || isDemoLoading || isGoogleLoading || isLoading
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -29,19 +35,37 @@ export function LoginPage() {
     if (!password) next.password = 'Enter your password.'
     setFieldError(next)
     if (Object.keys(next).length > 0) return
-    const ok = await login(email.trim(), password)
-    if (ok) navigate('/jobs')
+
+    setIsSubmitting(true)
+    try {
+      const ok = await login(email.trim(), password)
+      if (ok) navigate('/jobs')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const launchDemo = async () => {
     clearError()
-    const ok = await demoLogin()
-    if (ok) navigate('/jobs')
+    setIsDemoLoading(true)
+    try {
+      const ok = await demoLogin()
+      if (ok) navigate('/jobs')
+    } finally {
+      setIsDemoLoading(false)
+    }
   }
 
   return (
     <div className="mx-auto max-w-md px-4 py-12">
-      <Card className="animate-fade-rise">
+      <Card className="animate-fade-rise relative overflow-hidden">
+        {/* Top in-flight status indicator */}
+        {isBusy ? (
+          <div className="absolute inset-x-0 top-0 h-1 overflow-hidden bg-accent-wash">
+            <div className="h-full w-full bg-accent animate-pulse" />
+          </div>
+        ) : null}
+
         <CardHeader
           title={
             <div className="flex items-center gap-2">
@@ -61,16 +85,29 @@ export function LoginPage() {
               onChange={(event) => setEmail(event.target.value)}
               error={fieldError.email ?? null}
               placeholder="you@example.com"
+              disabled={isBusy}
               required
             />
             <TextField
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               error={fieldError.password ?? null}
               placeholder="Your password"
+              disabled={isBusy}
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isBusy}
+                  className="text-muted hover:text-ink focus:outline-none"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              }
               required
             />
             {error ? (
@@ -82,18 +119,30 @@ export function LoginPage() {
                 <span>{error}</span>
               </p>
             ) : null}
-            <Button type="submit" size="lg" className="w-full mt-2" loading={isLoading}>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full mt-2"
+              loading={isSubmitting}
+              loadingText="Signing in..."
+              disabled={isBusy || !email.trim() || !password}
+            >
               Sign in
             </Button>
           </form>
 
           <GoogleSignInButton
             onToken={async (token) => {
-              const ok = await google(token)
-              if (ok) navigate('/jobs')
-              return ok
+              setIsGoogleLoading(true)
+              try {
+                const ok = await google(token)
+                if (ok) navigate('/jobs')
+                return ok
+              } finally {
+                setIsGoogleLoading(false)
+              }
             }}
-            disabled={isLoading}
+            disabled={isBusy}
           />
 
           <div className="flex items-center gap-3 py-1">
@@ -109,7 +158,9 @@ export function LoginPage() {
               size="md"
               className="w-full"
               onClick={() => void launchDemo()}
-              loading={isLoading}
+              loading={isDemoLoading}
+              loadingText="Entering demo..."
+              disabled={isBusy}
             >
               Continue as demo
             </Button>

@@ -383,7 +383,7 @@ async def seed(session: AsyncSession) -> SeedReport:
             {
                 "email": spec.email,
                 "display_name": spec.display_name,
-                "role": "provider",
+                "role": "both",
                 "bio": spec.bio,
                 "latitude": spec.latitude,
                 "longitude": spec.longitude,
