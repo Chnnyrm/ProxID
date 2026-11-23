@@ -40,7 +40,7 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     phone_number: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
-    role: Mapped[str] = mapped_column(String(16), nullable=False, default="client")
+    role: Mapped[str] = mapped_column(String(16), nullable=False, default="both")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     # Last known position, used to rank providers and jobs by distance.

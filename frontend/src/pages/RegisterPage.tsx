@@ -1,22 +1,17 @@
 /**
- * Create an account. The role picker is a choice between offering work and needing it,
- * and it is the only thing that decides which tools a new person sees.
+ * Create an account.
+ * Short, enjoyable sign-up: minimal fields, live password guidance, one clear action.
  */
 
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import PasswordStrengthMeter from '@/components/PasswordStrengthMeter'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { TextField } from '@/components/ui/input'
 import { useAuth } from '@/hooks/useAuth'
-
-const ROLES = [
-  { value: 'client', label: 'I need work done' },
-  { value: 'provider', label: 'I offer services' },
-  { value: 'both', label: 'Both' },
-]
 
 export function RegisterPage() {
   const navigate = useNavigate()
@@ -24,26 +19,49 @@ export function RegisterPage() {
   const [displayName, setDisplayName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [role, setRole] = useState('client')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [fieldError, setFieldError] = useState<Record<string, string>>({})
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const isBusy = isSubmitting || isLoading
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     clearError()
     const next: Record<string, string> = {}
-    if (displayName.trim().length < 2) next.displayName = 'Tell us what to call you, at least 2 characters.'
-    if (!email.includes('@')) next.email = 'That email is missing an @. Check it and try again.'
-    if (password.length < 12) next.password = 'Passwords need at least 12 characters.'
+    if (displayName.trim().length < 2) {
+      next.displayName = 'Tell us what to call you, at least 2 characters.'
+    }
+    if (!email.includes('@') || !email.includes('.')) {
+      next.email = 'Check your email address and try again.'
+    }
+    if (password.length < 12) {
+      next.password = 'Passwords need at least 12 characters.'
+    }
+    if (password !== confirmPassword) {
+      next.confirmPassword = 'Passwords do not match.'
+    }
     setFieldError(next)
     if (Object.keys(next).length > 0) return
-    const ok = await register(email.trim().toLowerCase(), password, displayName.trim(), role)
-    if (ok) navigate('/jobs')
+
+    setIsSubmitting(true)
+    try {
+      const ok = await register(email.trim().toLowerCase(), password, displayName.trim())
+      if (ok) navigate('/jobs')
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   return (
     <div className="mx-auto max-w-md px-4 py-10">
       <Card className="animate-fade-rise">
-        <CardHeader title="Create an account" hint="Two minutes, then you can post or offer work." />
+        <CardHeader
+          title="Create an account"
+          hint="One minute, then you can post or offer work."
+        />
         <CardBody>
           <form className="space-y-3" onSubmit={(event) => void submit(event)} noValidate>
             <TextField
@@ -52,7 +70,9 @@ export function RegisterPage() {
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               error={fieldError.displayName ?? null}
-              placeholder="What should people call you?"
+              placeholder="Ada Lovelace"
+              disabled={isBusy}
+              required
             />
             <TextField
               label="Email"
@@ -62,45 +82,83 @@ export function RegisterPage() {
               onChange={(event) => setEmail(event.target.value)}
               error={fieldError.email ?? null}
               placeholder="you@example.com"
+              disabled={isBusy}
+              required
             />
             <TextField
               label="Password"
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              hint="At least 12 characters. A phrase you can remember beats a symbol soup."
               error={fieldError.password ?? null}
+              placeholder="At least 12 characters"
+              disabled={isBusy}
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  disabled={isBusy}
+                  className="text-muted hover:text-ink focus:outline-none"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              }
+              required
             />
-            <fieldset>
-              <legend className="mb-1 block text-sm font-medium text-ink">What brings you here?</legend>
-              <div className="flex flex-wrap gap-2">
-                {ROLES.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    onClick={() => setRole(option.value)}
-                    aria-pressed={role === option.value}
-                    className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors duration-200 ease-house ${
-                      role === option.value
-                        ? 'border-structural bg-accent text-accent-ink'
-                        : 'border-line bg-surface text-ink hover:bg-accent-wash'
-                    }`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
+            <TextField
+              label="Confirm Password"
+              type={showConfirmPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              error={fieldError.confirmPassword ?? null}
+              placeholder="Confirm your password"
+              disabled={isBusy}
+              trailing={
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  disabled={isBusy}
+                  className="text-muted hover:text-ink focus:outline-none"
+                  aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                >
+                  {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              }
+              required
+            />
+
+            {/* Live password guidance */}
+            <PasswordStrengthMeter
+              password={password}
+              confirmPassword={confirmPassword}
+              showConfirmMatch={true}
+            />
 
             {error ? (
-              <p role="alert" className="flex items-start gap-2 rounded-xl border border-line bg-accent-wash p-3 text-sm text-ink">
-                <AlertCircle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+              <p
+                role="alert"
+                className="flex items-start gap-2 rounded-xl border border-line bg-accent-wash p-3 text-sm text-ink"
+              >
+                <AlertCircle size={15} className="mt-0.5 shrink-0 text-accent" aria-hidden="true" />
                 <span>{error}</span>
               </p>
             ) : null}
 
-            <Button type="submit" size="lg" className="w-full" loading={isLoading}>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full mt-2"
+              loading={isSubmitting}
+              loadingText="Creating account..."
+              disabled={
+                isBusy ||
+                password.length < 12 ||
+                (confirmPassword.length > 0 && password !== confirmPassword)
+              }
+            >
               Create account
             </Button>
           </form>

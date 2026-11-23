@@ -13,8 +13,8 @@ export const authService = {
     api.post<SessionResponse>('/auth/login', { email, password }),
 
   /** Create an account and sign straight in. */
-  register: (email: string, password: string, display_name: string, role: string) =>
-    api.post<SessionResponse>('/auth/register', { email, password, display_name, role }),
+  register: (email: string, password: string, display_name: string) =>
+    api.post<SessionResponse>('/auth/register', { email, password, display_name }),
 
   /** Exchange the Google button's access token for a ProxID session. */
   google: (accessToken: string) =>

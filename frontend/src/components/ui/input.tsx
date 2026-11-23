@@ -11,6 +11,7 @@ interface FieldProps {
   label: string
   hint?: string
   error?: string | null
+  trailing?: React.ReactNode
 }
 
 const BASE =
@@ -18,7 +19,7 @@ const BASE =
   'transition-colors duration-200 ease-house disabled:opacity-60'
 
 export const TextField = forwardRef<HTMLInputElement, FieldProps & InputHTMLAttributes<HTMLInputElement>>(
-  function TextField({ label, hint, error, className, id, ...rest }, ref) {
+  function TextField({ label, hint, error, trailing, className, id, ...rest }, ref) {
     const generated = useId()
     const fieldId = id ?? generated
     const describedBy = error ? `${fieldId}-error` : hint ? `${fieldId}-hint` : undefined
@@ -27,14 +28,30 @@ export const TextField = forwardRef<HTMLInputElement, FieldProps & InputHTMLAttr
         <label htmlFor={fieldId} className="mb-1 block text-sm font-medium text-ink">
           {label}
         </label>
-        <input
-          ref={ref}
-          id={fieldId}
-          aria-invalid={error ? true : undefined}
-          aria-describedby={describedBy}
-          className={cn(BASE, error && 'border-accent', className)}
-          {...rest}
-        />
+        {trailing ? (
+          <div className="relative">
+            <input
+              ref={ref}
+              id={fieldId}
+              aria-invalid={error ? true : undefined}
+              aria-describedby={describedBy}
+              className={cn(BASE, 'pr-10', error && 'border-accent', className)}
+              {...rest}
+            />
+            <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center">
+              {trailing}
+            </div>
+          </div>
+        ) : (
+          <input
+            ref={ref}
+            id={fieldId}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={describedBy}
+            className={cn(BASE, error && 'border-accent', className)}
+            {...rest}
+          />
+        )}
         {hint && !error ? (
           <p id={`${fieldId}-hint`} className="mt-1 text-xs text-muted">
             {hint}

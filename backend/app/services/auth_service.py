@@ -90,7 +90,7 @@ class AuthService:
                 email=payload.email,
                 display_name=payload.display_name,
                 hashed_password=hash_password(payload.password),
-                role=payload.role,
+                role="both",
             )
         except IntegrityError as error:
             logger.warning("register_user raced on the unique email constraint", extra={"error": str(error)})
