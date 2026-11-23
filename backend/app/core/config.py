@@ -22,6 +22,14 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _is_local_database(url: str) -> bool:
+    """True when the URL points at this machine rather than a real server."""
+    lowered = url.lower()
+    return any(host in lowered for host in (
+        "@localhost", "@127.0.0.1", "@0.0.0.0", "@::1", "@host.docker.internal",
+    ))
+
+
 class Settings(BaseSettings):
     """All runtime configuration, validated on construction."""
 
@@ -266,10 +274,27 @@ class Settings(BaseSettings):
             missing.append("SECRET_KEY (at least 32 characters)")
         if not self.DATABASE_URL:
             missing.append("DATABASE_URL")
+        # A localhost default helps on a laptop and misleads in a deployment:
+        # the app boots, /health answers, and every query fails with a 500 that
+        # names nothing. Refuse to start instead.
+        if self.APP_ENV == "production" and _is_local_database(self.DATABASE_URL):
+            missing.append(
+                "DATABASE_URL (still points at localhost, which a deployment "
+                "cannot be)"
+            )
         if missing:
+            detail = ", ".join(missing)
+            if self.APP_ENV == "production":
+                raise RuntimeError(
+                    "ProxID cannot start: "
+                    + detail
+                    + ". Set these in the hosting provider's environment variables "
+                    "for the backend service."
+                )
             raise RuntimeError(
-                "ProxID cannot start: set " + ", ".join(missing) + " in backend/.env. "
-                "Copy backend/.env.example and fill in the values."
+                "ProxID cannot start: set "
+                + detail
+                + " in backend/.env. Copy backend/.env.example and fill in the values."
             )
 
     @property
