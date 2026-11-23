@@ -22,6 +22,40 @@ from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+# libpq spells TLS as sslmode and adds channel_binding. asyncpg has neither: it
+# takes `ssl`, and it rejects an unknown keyword. SQLAlchemy splits a URL's query
+# string and passes each pair as a keyword argument to asyncpg.connect, so a
+# connection string copied from Neon raises TypeError on every request. Verified by
+# reading the deployment traceback: "connect() got an unexpected keyword argument
+# 'sslmode'". Note that asyncpg.connect(dsn) accepts sslmode directly, which is why
+# testing the DSN against asyncpg alone does not reproduce this.
+_LIBPQ_QUERY_KEYS = ("sslmode", "channel_binding", "connect_timeout", "application_name")
+
+
+def _normalise_asyncpg_query(url: str) -> str:
+    """Translate libpq query parameters into ones asyncpg accepts."""
+    head, sep, query = url.partition("?")
+    if not sep:
+        return url
+    translated: list[str] = []
+    for pair in query.split("&"):
+        if not pair:
+            continue
+        key, _, val = pair.partition("=")
+        key_l = key.lower()
+        if key_l == "sslmode":
+            # asyncpg takes ssl=require|prefer|disable|verify-ca|verify-full
+            translated.append(f"ssl={val}")
+        elif key_l == "channel_binding":
+            # No equivalent, and asyncpg rejects it.
+            continue
+        elif key_l == "connect_timeout":
+            translated.append(f"timeout={val}")
+        else:
+            translated.append(pair)
+    return head + ("?" + "&".join(translated) if translated else "")
+
+
 def _is_local_database(url: str) -> bool:
     """True when the URL points at this machine rather than a real server."""
     lowered = url.lower()
@@ -217,7 +251,7 @@ class Settings(BaseSettings):
             value = "postgresql://" + value[len("postgres://"):]
         if value.startswith("postgresql://"):
             value = "postgresql+asyncpg://" + value[len("postgresql://"):]
-        return value
+        return _normalise_asyncpg_query(value)
 
     @field_validator("CORS_ORIGINS")
     @classmethod
