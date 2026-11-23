@@ -19,3 +19,14 @@ coverage/
 # Agent working notes. Not part of the product.
 .project-init-assumptions.md
 TASKS.md
+
+# Working documents. Instructions for whoever is building, the task ledger, and
+# reference material from the owner. None of it is product, and a judge opening the
+# repository should not have to read our notes to understand the project.
+AGENTS.md
+TASKS.md
+.gitmessage
+docs/agent/
+docs/landing-copy.md
+docs/reference/
+.~lock.*#
