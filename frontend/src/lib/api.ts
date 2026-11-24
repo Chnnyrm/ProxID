@@ -46,8 +46,9 @@ type Method = 'GET' | 'POST' | 'PATCH' | 'DELETE'
 const CSRF_SAFE: Method[] = ['GET']
 
 async function request<T>(method: Method, path: string, body?: unknown): Promise<T> {
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  if (body !== undefined && !isFormData) headers['Content-Type'] = 'application/json'
 
   if (!CSRF_SAFE.includes(method)) {
     const csrf = readCookie('proxid_csrf')
@@ -58,7 +59,7 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
     method,
     headers,
     credentials: 'include',
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: body === undefined ? undefined : isFormData ? body : JSON.stringify(body),
   })
 
   if (response.status === 204) return undefined as T

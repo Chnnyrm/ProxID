@@ -261,7 +261,10 @@ export function MapPage() {
       </div>
 
       {/* Main Map Canvas */}
-      <div className="overflow-hidden rounded-2xl border border-line shadow-xs">
+      <div
+        data-tour="tour-map"
+        className="overflow-hidden rounded-2xl border border-line shadow-xs"
+      >
         <NeighborhoodMap
           center={coordinates}
           radiusKm={dragRadius}

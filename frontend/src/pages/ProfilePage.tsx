@@ -37,35 +37,8 @@ import { useMyJobs } from '@/hooks/useJobs'
 import { useApproveVerification, useMyVerification, useRequestVerification } from '@/hooks/useVerification'
 import { money, statusLabel, timeAgo } from '@/lib/format'
 
-async function resizeImageToDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      const img = new Image()
-      img.onload = () => {
-        const canvas = document.createElement('canvas')
-        const size = 96
-        canvas.width = size
-        canvas.height = size
-        const ctx = canvas.getContext('2d')
-        if (!ctx) {
-          resolve(e.target?.result as string)
-          return
-        }
-        ctx.drawImage(img, 0, 0, size, size)
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.6)
-        resolve(dataUrl)
-      }
-      img.onerror = reject
-      img.src = e.target?.result as string
-    }
-    reader.onerror = reject
-    reader.readAsDataURL(file)
-  })
-}
-
 export function ProfilePage() {
-  const { user, isSignedIn, isLoading, logout, updateProfile } = useAuth()
+  const { user, isSignedIn, isLoading, logout, updateProfile, uploadAvatar } = useAuth()
   const verification = useMyVerification(isSignedIn)
   const request = useRequestVerification()
   const approve = useApproveVerification()
@@ -74,6 +47,8 @@ export function ProfilePage() {
   const [purpose, setPurpose] = useState<'personhood' | 'age_over_18'>('personhood')
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const [uploadedPublicId, setUploadedPublicId] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
 
@@ -90,6 +65,7 @@ export function ProfilePage() {
     setEditBio(user.bio || '')
     setEditNeighbourhood(user.neighbourhood || '')
     setEditAvatarUrl(user.avatar_url || '')
+    setUploadedPublicId(null)
     setSaveError(null)
     setIsEditing(true)
   }
@@ -102,11 +78,20 @@ export function ProfilePage() {
   const handleAvatarFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+    setIsUploadingAvatar(true)
+    setSaveError(null)
     try {
-      const dataUrl = await resizeImageToDataUrl(file)
-      setEditAvatarUrl(dataUrl)
+      const res = await uploadAvatar(file)
+      if (res) {
+        setEditAvatarUrl(res.url)
+        setUploadedPublicId(res.public_id)
+      } else {
+        setSaveError('Failed to upload picture. Check format (JPG, PNG, WebP).')
+      }
     } catch {
-      setSaveError('Failed to process image file.')
+      setSaveError('Failed to upload image file.')
+    } finally {
+      setIsUploadingAvatar(false)
     }
   }
 
@@ -276,7 +261,8 @@ export function ProfilePage() {
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    className="absolute -bottom-1 -right-1 rounded-full bg-accent text-accent-ink p-1.5 shadow hover:scale-105 transition-transform"
+                    disabled={isUploadingAvatar}
+                    className="absolute -bottom-1 -right-1 rounded-full bg-ink text-surface p-1.5 shadow hover:scale-105 transition-transform disabled:opacity-50"
                     title="Upload picture"
                   >
                     <Camera size={13} />
@@ -296,6 +282,8 @@ export function ProfilePage() {
                       type="button"
                       intent="secondary"
                       size="sm"
+                      loading={isUploadingAvatar}
+                      loadingLabel="Uploading..."
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <Upload size={12} className="mr-1" />
@@ -306,12 +294,21 @@ export function ProfilePage() {
                         type="button"
                         intent="ghost"
                         size="sm"
-                        onClick={() => setEditAvatarUrl('')}
+                        disabled={isUploadingAvatar}
+                        onClick={() => {
+                          setEditAvatarUrl('')
+                          setUploadedPublicId(null)
+                        }}
                       >
                         Remove
                       </Button>
                     )}
                   </div>
+                  {uploadedPublicId && (
+                    <p className="text-[11px] font-mono text-muted truncate max-w-xs">
+                      Public ID: {uploadedPublicId}
+                    </p>
+                  )}
                   <p className="text-[11px] text-muted">Upload any photo; it will be formatted to fit.</p>
                 </div>
               </div>

@@ -41,4 +41,14 @@ export const authService = {
     latitude?: number
     longitude?: number
   }) => api.patch<Me>('/users/me', data),
+
+  /** Upload media asset (such as an avatar) to Cloudinary. */
+  uploadMedia: (file: File, purpose = 'avatars') => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return api.post<{ url: string; public_id: string }>(
+      `/upload?purpose=${encodeURIComponent(purpose)}`,
+      formData,
+    )
+  },
 }

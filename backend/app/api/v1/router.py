@@ -14,6 +14,7 @@ from .endpoints import (
     messages,
     payments,
     services,
+    upload,
     users,
     verification,
 )
@@ -21,6 +22,7 @@ from .endpoints import (
 api_router = APIRouter()
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(users.router, prefix="/users", tags=["users"])
+api_router.include_router(upload.router, prefix="/upload", tags=["upload"])
 api_router.include_router(categories.router, prefix="/categories", tags=["categories"])
 api_router.include_router(services.router, prefix="/services", tags=["services"])
 api_router.include_router(jobs.router, prefix="/jobs", tags=["jobs"])
