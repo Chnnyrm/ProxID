@@ -135,6 +135,7 @@ CATEGORIES: tuple[tuple[str, str, str], ...] = (
     ("Cleaning", "cleaning", "Homes, offices and post-construction"),
     ("Pest Control", "pest-control", "Fumigation and infestation treatment"),
     ("Appliance Repair", "appliance-repair", "Fridges, washing machines and cookers"),
+    ("Wellness & Therapy", "wellness", "Massage, physiotherapy and chiropractic care"),
 )
 
 PROVIDERS: tuple[ProviderSpec, ...] = (
@@ -202,6 +203,33 @@ PROVIDERS: tuple[ProviderSpec, ...] = (
         agent_account=None,
         company=None,
         listings=(("Washing machine repair", "Drum, pump and control board faults.", "appliance-repair", 9500.0),),
+    ),
+    ProviderSpec(
+        key="kosi",
+        display_name="Kosi Adeyemi",
+        email="provider.kosi@proxid.local",
+        bio="Licensed physiotherapist and deep tissue massage specialist in Yaba. Pain relief & spine therapy.",
+        latitude=6.5102,
+        longitude=3.3725,
+        neighbourhood="Yaba, Lagos",
+        verified=True,
+        proof_reference="demo-proof-ref-kosi-0004",
+        agent_account=None,
+        company=None,
+        listings=(
+            (
+                "Deep tissue massage and back relief",
+                "Targeted relief for lower back pain, sciatica, muscle tension, and spine relaxation.",
+                "wellness",
+                15000.0,
+            ),
+            (
+                "Physiotherapy & spinal rehabilitation",
+                "Clinical movement assessment, posture adjustment, and targeted back rehabilitation.",
+                "wellness",
+                20000.0,
+            ),
+        ),
     ),
 )
 

@@ -102,7 +102,7 @@ async def list_open_nearby(
     query = (
         select(Job, distance)
         .where(*conditions)
-        .order_by(distance.asc(), Job.id.asc())
+        .order_by(Job.created_at.desc(), distance.asc(), Job.id.asc())
         .limit(limit)
         .offset(offset)
     )

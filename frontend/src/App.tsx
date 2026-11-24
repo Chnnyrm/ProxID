@@ -8,6 +8,8 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
 import { Header } from '@/components/Header'
 import { Navigation } from '@/components/Navigation'
+import OnboardingOverlay from '@/components/OnboardingOverlay'
+import VoiceAssistant from '@/components/VoiceAssistant'
 import { AgentPage } from '@/pages/AgentPage'
 import { JobDetailPage } from '@/pages/JobDetailPage'
 import { JobRoomPage } from '@/pages/JobRoomPage'
@@ -16,7 +18,7 @@ import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { MapPage } from '@/pages/MapPage'
 import { ProfilePage } from '@/pages/ProfilePage'
-import { ProvidersPage } from '@/pages/ProvidersPage'
+import { ServicesPage } from '@/pages/ServicesPage'
 import { RegisterPage } from '@/pages/RegisterPage'
 import { useAuthStore } from '@/store/authStore'
 
@@ -33,6 +35,8 @@ export function App() {
     <div className="flex min-h-screen flex-col bg-page text-ink">
       <Navigation />
       <Header />
+      <OnboardingOverlay />
+      <VoiceAssistant />
       <main className="flex-1 lg:pl-24 pb-20 lg:pb-0">
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -42,8 +46,8 @@ export function App() {
           <Route path="/jobs/:jobId" element={<JobDetailPage />} />
           <Route path="/jobs/:jobId/room" element={<JobRoomPage />} />
           <Route path="/map" element={<MapPage />} />
-          <Route path="/providers" element={<ProvidersPage />} />
-          <Route path="/services" element={<Navigate to="/providers" replace />} />
+          <Route path="/services" element={<ServicesPage />} />
+          <Route path="/providers" element={<Navigate to="/services" replace />} />
           <Route path="/agent" element={<AgentPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="*" element={<Navigate to="/" replace />} />

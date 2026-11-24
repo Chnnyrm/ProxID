@@ -22,6 +22,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.geo import geography_point, to_wkt_point
 from ..core.text_search import tokenize_query
+from ..models.job import Job
 from ..models.service import ServiceListing
 from ..models.user import User
 
@@ -75,10 +76,11 @@ async def list_nearby(
     """
     point = geography_point(longitude, latitude)
     distance = func.ST_Distance(ServiceListing.location, point).label("distance_m")
-    boosted = (
-        func.ST_Distance(ServiceListing.location, point)
-        - case((User.concordium_verified.is_(True), VERIFIED_DISTANCE_BOOST_METRES), else_=0.0)
-    ).label("rank_m")
+    completed_jobs = (
+        select(func.count(Job.id))
+        .where(Job.provider_id == User.id, Job.status == "completed")
+        .scalar_subquery()
+    )
 
     conditions = [
         ServiceListing.is_active.isnot(False),
@@ -95,7 +97,13 @@ async def list_nearby(
         select(ServiceListing, distance, User.concordium_verified)
         .join(User, User.id == ServiceListing.provider_id)
         .where(*conditions)
-        .order_by(boosted.asc(), distance.asc(), ServiceListing.id.asc())
+        .order_by(
+            User.concordium_verified.desc(),
+            distance.asc(),
+            completed_jobs.desc(),
+            ServiceListing.created_at.desc(),
+            ServiceListing.id.asc(),
+        )
         .limit(limit)
         .offset(offset)
     )
