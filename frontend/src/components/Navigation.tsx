@@ -6,7 +6,7 @@
  * - Flat palette tokens, 8px button radius, zero pink controls.
  */
 
-import { Bot, Briefcase, Compass, Home, User } from 'lucide-react'
+import { Bot, Briefcase, Home, MapPin, User } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 
 import { Logo } from '@/components/Logo'
@@ -21,7 +21,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { to: '/', label: 'Home', icon: Home },
-  { to: '/providers', label: 'Explore', icon: Compass },
+  { to: '/map', label: 'Map', icon: MapPin },
   { to: '/jobs', label: 'Jobs', icon: Briefcase },
   { to: '/agent', label: 'Agent', icon: Bot },
   { to: '/profile', label: 'Profile', icon: User },

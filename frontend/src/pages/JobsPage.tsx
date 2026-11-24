@@ -7,7 +7,7 @@
  * Matches Gigr list patterns: responsive, skeletons, empty states, instant feedback.
  */
 
-import { Briefcase, Clock, Filter, MapPin, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
+import { Briefcase, Clock, Filter, Map as MapIcon, MapPin, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 
@@ -110,23 +110,28 @@ export function JobsPage() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
       {/* Page Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="flex flex-wrap items-end justify-between gap-3 border-b border-line pb-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink">Jobs</h1>
-          <p className="mt-1 text-sm text-muted">
-            {source === 'demo'
-              ? 'Showing jobs in Yaba, Lagos. Share your location for live neighborhood proximity.'
-              : 'Browse open requests around your location, nearest first.'}
-          </p>
+          <h1 className="font-display text-4xl sm:text-5xl uppercase tracking-tight text-ink leading-none">
+            Open Jobs
+          </h1>
+          <p className="mt-1 text-xs text-muted">Community tasks within range</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/map?filter=jobs"
+            className="inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-3.5 text-xs font-bold text-ink hover:bg-sunken transition-colors shadow-xs"
+          >
+            <MapIcon size={14} aria-hidden="true" />
+            <span>Map</span>
+          </Link>
           <Button intent="secondary" size="sm" onClick={() => void requestDeviceLocation()}>
             <MapPin size={14} aria-hidden="true" />
-            <span>Use my location</span>
+            <span>Nearby</span>
           </Button>
           <Button size="sm" onClick={() => setShowForm((open) => !open)}>
             <Plus size={15} aria-hidden="true" />
-            <span>Post a job</span>
+            <span>Post Job</span>
           </Button>
         </div>
       </div>
@@ -237,8 +242,8 @@ export function JobsPage() {
             onClick={() => setSelectedCategory('all')}
             className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200 ease-house ${
               selectedCategory === 'all'
-                ? 'border-structural bg-accent text-accent-ink font-semibold'
-                : 'border-line bg-surface text-ink hover:bg-accent-wash'
+                ? 'border-structural bg-ink text-page font-semibold'
+                : 'border-line bg-surface text-ink hover:bg-sunken'
             }`}
           >
             All Categories
@@ -250,8 +255,8 @@ export function JobsPage() {
               onClick={() => setSelectedCategory(cat.id)}
               className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200 ease-house ${
                 selectedCategory === cat.id
-                  ? 'border-structural bg-accent text-accent-ink font-semibold'
-                  : 'border-line bg-surface text-ink hover:bg-accent-wash'
+                  ? 'border-structural bg-ink text-page font-semibold'
+                  : 'border-line bg-surface text-ink hover:bg-sunken'
               }`}
             >
               {cat.name}

@@ -35,6 +35,7 @@ import {
   X,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { ErrorState } from '@/components/ErrorState'
 import {
@@ -219,35 +220,33 @@ export function ProvidersPage() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8 space-y-6">
-      {/* Editorial Poster Header */}
-      <section className="border-b border-line pb-6">
-        <div className="flex flex-wrap items-center justify-between gap-2 text-muted font-mono text-[10px] uppercase tracking-wider mb-2">
-          <span>CONCORDIUM ATTESTATION RAIL // REGISTRY 0x474329</span>
-          <span>SPATIAL PROXIMITY INDEX</span>
+      {/* Minimal Header: 2 words heading, max 1 line secondary text, zero prose */}
+      <section className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 border-b border-line pb-4">
+        <div>
+          <h1 className="font-display text-4xl sm:text-6xl uppercase tracking-tight leading-none text-ink">
+            Verified Providers
+          </h1>
+          <p className="mt-1 text-xs text-muted">Attested local trades</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
-          <div className="max-w-xl">
-            <h1 className="font-display text-4xl sm:text-6xl uppercase tracking-tight leading-none text-ink">
-              Verified Providers
-            </h1>
-            <p className="mt-2 text-xs sm:text-sm text-muted leading-relaxed">
-              Cryptographically verified human tradespeople within local range. Zero speculative
-              tokens: reputation is anchored on Concordium Zero-Knowledge proofs.
-            </p>
-          </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Map Button navigating to /map?filter=services */}
+          <Link
+            to="/map?filter=services"
+            className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg border border-line bg-surface px-4 text-xs font-bold text-ink hover:bg-sunken transition-colors shadow-xs"
+          >
+            <MapIcon size={14} />
+            <span>Map</span>
+          </Link>
 
-          {/* Primary Action Button: ink on sand, NEVER pink */}
-          <div className="shrink-0">
-            <button
-              type="button"
-              onClick={() => setIsPublishOpen(true)}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-structural bg-ink px-5 text-sm font-bold text-page shadow-xs transition-opacity duration-150 hover:opacity-90 active:translate-y-px"
-            >
-              <Plus size={16} />
-              Offer Your Trade
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsPublishOpen(true)}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-structural bg-ink px-5 text-xs font-bold text-page shadow-xs transition-opacity duration-150 hover:opacity-90 active:translate-y-px"
+          >
+            <Plus size={14} />
+            <span>Offer Trade</span>
+          </button>
         </div>
       </section>
 
