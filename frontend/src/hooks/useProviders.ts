@@ -2,7 +2,7 @@
  * Providers, listings and categories around the current coordinate.
  */
 
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type { Coordinates } from '@/lib/contracts'
 import { providerService } from '@/services/providerService'
@@ -60,5 +60,28 @@ export function useNearbyListings(verifiedOnly = false) {
   return useQuery({
     queryKey: ['listings', 'nearby', coordinates.latitude, coordinates.longitude, radiusKm, verifiedOnly],
     queryFn: () => providerService.listingsNearby(coordinates, radiusKm, verifiedOnly, 40),
+  })
+}
+
+/** The caller's published service listings. */
+export function useMyListings(enabled = true) {
+  return useQuery({
+    queryKey: ['services', 'mine'],
+    queryFn: () => providerService.myListings(),
+    enabled,
+  })
+}
+
+/** Create a new service listing. */
+export function useCreateListing() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (data: Parameters<typeof providerService.createListing>[0]) =>
+      providerService.createListing(data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['services', 'mine'] })
+      void queryClient.invalidateQueries({ queryKey: ['providers'] })
+      void queryClient.invalidateQueries({ queryKey: ['listings'] })
+    },
   })
 }
