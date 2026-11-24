@@ -45,6 +45,14 @@ const FALLBACK_ATTRIBUTION = 'OpenStreetMap contributors'
 function destackPoints(rawPoints: MapPoint[]): MapPoint[] {
   const coordMap = new Map<string, MapPoint[]>()
   for (const point of rawPoints) {
+    if (
+      typeof point.latitude !== 'number' ||
+      isNaN(point.latitude) ||
+      typeof point.longitude !== 'number' ||
+      isNaN(point.longitude)
+    ) {
+      continue
+    }
     const key = `${point.latitude.toFixed(4)},${point.longitude.toFixed(4)}`
     if (!coordMap.has(key)) coordMap.set(key, [])
     coordMap.get(key)!.push(point)

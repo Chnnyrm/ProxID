@@ -74,11 +74,19 @@ export function MapPage() {
     if (activeFilter === 'all' || activeFilter === 'services') {
       const providers = providersQuery.data ?? []
       for (const p of providers) {
+        const lat =
+          typeof p.latitude === 'number' && !isNaN(p.latitude)
+            ? p.latitude
+            : coordinates.latitude
+        const lon =
+          typeof p.longitude === 'number' && !isNaN(p.longitude)
+            ? p.longitude
+            : coordinates.longitude
         list.push({
           id: `provider-${p.id}`,
           kind: 'provider',
-          latitude: coordinates.latitude,
-          longitude: coordinates.longitude,
+          latitude: lat,
+          longitude: lon,
           title: p.display_name,
           subtitle: p.services[0]?.title ?? 'Attested Tradesperson',
           price: p.services[0]?.price ?? null,
@@ -93,11 +101,19 @@ export function MapPage() {
     if (activeFilter === 'all' || activeFilter === 'jobs') {
       const jobs = jobsQuery.data ?? []
       for (const j of jobs) {
+        const lat =
+          typeof j.latitude === 'number' && !isNaN(j.latitude)
+            ? j.latitude
+            : coordinates.latitude
+        const lon =
+          typeof j.longitude === 'number' && !isNaN(j.longitude)
+            ? j.longitude
+            : coordinates.longitude
         list.push({
           id: `job-${j.id}`,
           kind: 'job',
-          latitude: j.latitude,
-          longitude: j.longitude,
+          latitude: lat,
+          longitude: lon,
           title: j.title,
           subtitle: j.category_name ?? 'Community Task',
           price: j.price,
@@ -260,7 +276,9 @@ export function MapPage() {
         <span>
           {points.length} {activeFilter === 'jobs' ? 'JOBS' : activeFilter === 'services' ? 'SERVICES' : 'NODES'} IN {formattedRadius.toUpperCase()}
         </span>
-        <span>LAT {coordinates.latitude.toFixed(4)} // LON {coordinates.longitude.toFixed(4)}</span>
+        <span>
+          LAT {coordinates?.latitude != null ? coordinates.latitude.toFixed(4) : '6.5244'} // LON {coordinates?.longitude != null ? coordinates.longitude.toFixed(4) : '3.3792'}
+        </span>
       </div>
     </div>
   )
