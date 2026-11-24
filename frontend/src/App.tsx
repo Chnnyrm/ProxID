@@ -6,8 +6,8 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
-import { DemoBanner } from '@/components/DemoBanner'
 import { Header } from '@/components/Header'
+import { Navigation } from '@/components/Navigation'
 import { AgentPage } from '@/pages/AgentPage'
 import { JobDetailPage } from '@/pages/JobDetailPage'
 import { JobRoomPage } from '@/pages/JobRoomPage'
@@ -29,10 +29,10 @@ export function App() {
   }, [bootstrap])
 
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex min-h-screen flex-col bg-page text-ink">
+      <Navigation />
       <Header />
-      <DemoBanner />
-      <main className="flex-1">
+      <main className="flex-1 lg:pl-24 pb-20 lg:pb-0">
         <Routes>
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<LoginPage />} />
@@ -47,7 +47,7 @@ export function App() {
         </Routes>
       </main>
       {!isLanding && (
-        <footer className="border-t border-line px-4 py-6">
+        <footer className="border-t border-line px-4 py-6 lg:pl-28 mb-16 lg:mb-0">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-xs text-muted">
             <span className="font-mono text-[10px] uppercase tracking-wider text-muted">
               PROXID // CONCORDIUM ZERO-KNOWLEDGE PROXIMITY INDEX

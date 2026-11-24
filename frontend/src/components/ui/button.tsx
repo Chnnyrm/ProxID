@@ -1,8 +1,8 @@
 /**
  * Button. Three intents, one focus treatment (the global one), no gradient.
  *
- * The primary intent is a pink fill with dark ink on it: pink on Sand is 2.03:1, so
- * text on pink must be the dark ink (6.87:1) and never the mocha body colour.
+ * Primary intent is ink on sand (bg-ink text-page border-structural).
+ * Pink is NEVER a button colour per owner rule (PREMIUM-BAR.md).
  */
 
 import { forwardRef, type ButtonHTMLAttributes } from 'react'
@@ -21,11 +21,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const INTENTS: Record<Intent, string> = {
   primary:
-    'bg-accent text-accent-ink border-structural hover:brightness-105 active:translate-y-px',
+    'bg-ink text-page border-structural hover:opacity-90 active:translate-y-px',
   secondary:
-    'bg-surface text-ink border-line hover:bg-accent-wash active:translate-y-px',
-  ghost: 'bg-transparent text-ink border-transparent hover:bg-accent-wash',
-  danger: 'bg-accent-wash text-ink border-accent hover:brightness-105 active:translate-y-px',
+    'bg-surface text-ink border-line hover:bg-sunken active:translate-y-px',
+  ghost: 'bg-transparent text-ink border-transparent hover:bg-sunken',
+  danger: 'bg-surface text-ink border-structural hover:bg-sunken active:translate-y-px',
 }
 
 const SIZES = {
@@ -55,7 +55,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex items-center justify-center rounded-full border font-medium',
+        'inline-flex items-center justify-center rounded-lg border font-medium',
         'transition-[transform,opacity,background-color] duration-200 ease-house',
         'disabled:pointer-events-none disabled:opacity-60',
         INTENTS[intent],

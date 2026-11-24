@@ -32,7 +32,6 @@ export interface MapPoint {
   price?: number | null
   distanceKm?: number | null
   verified?: boolean
-  isDemo?: boolean
   href?: string
 }
 
@@ -100,9 +99,51 @@ function createPinIcon(point: MapPoint, active: boolean): L.DivIcon {
   })
 }
 
+/** Offset overlapping pins on a radial circle so all pins are distinguishable and clickable. */
+function destackPoints(rawPoints: MapPoint[]): MapPoint[] {
+  const coordMap = new Map<string, MapPoint[]>()
+  for (const point of rawPoints) {
+    const key = `${point.latitude.toFixed(4)},${point.longitude.toFixed(4)}`
+    if (!coordMap.has(key)) coordMap.set(key, [])
+    coordMap.get(key)!.push(point)
+  }
+
+  const result: MapPoint[] = []
+  for (const group of coordMap.values()) {
+    if (group.length === 1) {
+      result.push(group[0])
+    } else {
+      const radiusDeg = 0.0016
+      group.forEach((pt, idx) => {
+        const angle = (idx * 2 * Math.PI) / group.length
+        const cosLat = Math.cos((pt.latitude * Math.PI) / 180) || 1
+        result.push({
+          ...pt,
+          latitude: pt.latitude + Math.sin(angle) * radiusDeg,
+          longitude: pt.longitude + (Math.cos(angle) * radiusDeg) / cosLat,
+        })
+      })
+    }
+  }
+  return result
+}
+
+function InvalidateOnMount() {
+  const map = useMap()
+  useEffect(() => {
+    map.invalidateSize()
+    const timer = setTimeout(() => {
+      map.invalidateSize()
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [map])
+  return null
+}
+
 function RecentreMap({ center }: { center: Coordinates }) {
   const map = useMap()
   useEffect(() => {
+    map.invalidateSize()
     map.setView([center.latitude, center.longitude], map.getZoom(), { animate: false })
   }, [map, center.latitude, center.longitude])
   return null
@@ -131,13 +172,15 @@ export function NeighborhoodMap({
   const { data: mapConfig } = useMapConfig()
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
+  const destackedPoints = useMemo(() => destackPoints(points), [points])
+
   const icons = useMemo(() => {
     const map = new Map<string, L.DivIcon>()
-    for (const point of points) {
+    for (const point of destackedPoints) {
       map.set(point.id, createPinIcon(point, point.id === selectedId))
     }
     return map
-  }, [points, selectedId])
+  }, [destackedPoints, selectedId])
 
   const tileUrl = mapConfig?.tile_url ?? FALLBACK_TILE
   const attribution = mapConfig?.attribution ?? FALLBACK_ATTRIBUTION
@@ -180,6 +223,7 @@ export function NeighborhoodMap({
         attributionControl
       >
         <TileLayer url={tileUrl} attribution={attribution} className="map-tiles" />
+        <InvalidateOnMount />
         <RecentreMap center={center} />
         <ClearOnMapClick onClear={() => setSelectedId(null)} />
 
@@ -197,7 +241,7 @@ export function NeighborhoodMap({
           />
         ) : null}
 
-        {points.map((point) => (
+        {destackedPoints.map((point) => (
           <Marker
             key={point.id}
             position={[point.latitude, point.longitude]}

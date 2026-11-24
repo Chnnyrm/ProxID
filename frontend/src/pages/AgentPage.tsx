@@ -23,7 +23,6 @@ import { useState } from 'react'
 import { AgentActivity } from '@/components/AgentActivity'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
-import { DemoBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -212,7 +211,6 @@ export function AgentPage() {
             <CardHeader
               title="Concordium Agent Card"
               hint="Five deterministic checks, re-evaluated on each action."
-              action={card.data ? <DemoBadge isDemo={card.data.is_demo} /> : null}
             />
             <CardBody className="space-y-3">
               {!isSignedIn ? (

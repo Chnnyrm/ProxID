@@ -26,7 +26,7 @@ import { Link } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
-import { DemoBadge, VerifiedBadge } from '@/components/VerifiedBadge'
+import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -203,7 +203,6 @@ export function ProfilePage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-xl font-bold tracking-tight text-ink truncate">{user.display_name}</h1>
                     <VerifiedBadge verified={user.concordium_verified} />
-                    <DemoBadge isDemo={user.is_demo} />
                   </div>
                   <p className="mt-0.5 text-xs text-muted truncate">{user.email}</p>
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted">
@@ -512,7 +511,6 @@ export function ProfilePage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge tone="quiet">{statusLabel(job.status)}</Badge>
-                    <DemoBadge isDemo={job.is_demo} />
                     <Link
                       to={`/jobs/${job.id}/room`}
                       className="rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-medium text-ink hover:bg-sunken transition-colors"

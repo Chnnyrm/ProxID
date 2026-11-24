@@ -1,12 +1,8 @@
 /**
- * The human proof, and the demo mark.
- *
- * Two badges that must never be mistaken for each other: one is a pink fill saying a
- * zero-knowledge proof is on file, the other is a dashed outline saying the row is
- * seeded data. A demo row shows both, because both are true.
+ * The human proof badge for Concordium Zero-Knowledge verification.
  */
 
-import { BadgeCheck, FlaskConical } from 'lucide-react'
+import { BadgeCheck } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
 
@@ -29,15 +25,7 @@ export function VerifiedBadge({ verified }: { verified: boolean }) {
   )
 }
 
-export function DemoBadge({ isDemo }: { isDemo: boolean }) {
-  if (!isDemo) return null
-  return (
-    <Badge
-      tone="demo"
-      title="Seeded demonstration data. Not a real account and not an on-chain record."
-    >
-      <FlaskConical size={12} aria-hidden="true" />
-      Demo data
-    </Badge>
-  )
+/** Legacy placeholder: returns null. */
+export function DemoBadge(_props: Record<string, unknown>) {
+  return null
 }

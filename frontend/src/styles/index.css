@@ -171,12 +171,13 @@ body {
   background-color: var(--surface-sunken);
 }
 
-[data-theme='dark'] .map-tiles {
-  filter: invert(1) hue-rotate(180deg) brightness(0.92) contrast(0.9) saturate(0.65);
+.map-tiles {
+  filter: grayscale(0.7) contrast(0.9) brightness(1.05) sepia(0.18);
+  transition: filter var(--duration) var(--ease);
 }
 
-.map-tiles {
-  transition: filter var(--duration) var(--ease);
+[data-theme='dark'] .map-tiles {
+  filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.95) saturate(0.6);
 }
 
 /* Leaflet's own chrome has hard-coded whites and greys. */
