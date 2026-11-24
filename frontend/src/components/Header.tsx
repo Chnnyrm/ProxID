@@ -52,8 +52,8 @@ export function Header() {
                       to={link.to}
                       className={({ isActive }) =>
                         cn(
-                          'inline-block rounded-full px-2.5 py-1 font-medium transition-colors duration-200 ease-house',
-                          isActive ? 'bg-accent-wash text-ink' : 'text-muted hover:text-ink',
+                          'inline-block rounded-lg px-3 py-1 text-xs font-medium transition-colors duration-200 ease-house',
+                          isActive ? 'bg-sunken text-ink font-semibold' : 'text-muted hover:text-ink',
                         )
                       }
                     >

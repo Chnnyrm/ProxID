@@ -1,0 +1,30 @@
+# Vercel installs the Python function's dependencies from this file at the
+# repository root. It cannot follow an include, so the list is duplicated from
+# backend/requirements.txt rather than referenced. Keep the two identical; the
+# architecture check and the local venv read the backend copy.
+
+# Web framework and transport
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+
+# Database (async Postgres + PostGIS via GeoAlchemy2)
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+geoalchemy2==0.16.0
+
+# Configuration and contracts
+pydantic==2.10.4
+pydantic-settings==2.7.0
+email-validator==2.2.0
+
+# Sessions and passwords
+PyJWT==2.10.1
+bcrypt==4.2.1
+
+# Outbound HTTP (Groq, Google, Brevo, Concordium later)
+httpx==0.28.1
+
+# Media and email sdks
+cloudinary==1.41.0

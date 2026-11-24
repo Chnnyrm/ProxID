@@ -46,4 +46,18 @@ export const providerService = {
 
   /** The map's tile template and attribution, from configuration. */
   mapConfig: () => api.get<{ tile_url: string; attribution: string }>('/location/map-config'),
+
+  /** The caller's published service listings. */
+  myListings: () => api.get<ListingsResponse>('/services/mine'),
+
+  /** Publish a new service listing. */
+  createListing: (data: {
+    category_id: string
+    title: string
+    description?: string | null
+    price?: number | null
+    latitude: number
+    longitude: number
+    radius_km: number
+  }) => api.post<ServiceListing>('/services', data),
 }

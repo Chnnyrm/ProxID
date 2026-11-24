@@ -23,6 +23,7 @@ export default {
       },
       fontFamily: {
         sans: ['Geist Variable', 'Geist', 'system-ui', 'sans-serif'],
+        display: ['"Bebas Neue"', 'Impact', 'sans-serif'],
       },
       transitionTimingFunction: {
         house: 'cubic-bezier(0.22, 1, 0.36, 1)',
