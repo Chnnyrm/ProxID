@@ -6,7 +6,7 @@
  * - Flat palette tokens, 8px button radius, zero pink controls.
  */
 
-import { Bot, Briefcase, Home, MapPin, User } from 'lucide-react'
+import { Bot, Briefcase, Home, MapPin, User, Wrench } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 
 import { Logo } from '@/components/Logo'
@@ -17,14 +17,15 @@ interface NavItem {
   to: string
   label: string
   icon: typeof Home
+  tour?: string
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: '/', label: 'Home', icon: Home },
-  { to: '/map', label: 'Map', icon: MapPin },
-  { to: '/jobs', label: 'Jobs', icon: Briefcase },
-  { to: '/agent', label: 'Agent', icon: Bot },
-  { to: '/profile', label: 'Profile', icon: User },
+  { to: '/map', label: 'Map', icon: MapPin, tour: 'nav-map' },
+  { to: '/services', label: 'Services', icon: Wrench, tour: 'nav-services' },
+  { to: '/jobs', label: 'Jobs', icon: Briefcase, tour: 'nav-jobs' },
+  { to: '/agent', label: 'Agent', icon: Bot, tour: 'nav-agent' },
+  { to: '/profile', label: 'Profile', icon: User, tour: 'nav-profile' },
 ]
 
 export function Navigation() {
@@ -63,6 +64,7 @@ export function Navigation() {
               <Link
                 key={item.to}
                 to={item.to}
+                data-tour={item.tour}
                 className={`group flex flex-col items-center justify-center w-16 h-14 rounded-xl transition-all duration-150 ${
                   isActive
                     ? 'border border-structural bg-page text-ink shadow-xs'
@@ -116,6 +118,7 @@ export function Navigation() {
             <Link
               key={item.to}
               to={item.to}
+              data-tour={item.tour}
               className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-colors ${
                 isActive ? 'text-ink font-bold' : 'text-muted hover:text-ink'
               }`}

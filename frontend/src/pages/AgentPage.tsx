@@ -6,11 +6,16 @@
 
 import {
   AlertTriangle,
+  ArrowRight,
   BadgeCheck,
   Bot,
   Command,
   ExternalLink,
   HelpCircle,
+  Loader2,
+  MapPin,
+  Mic,
+  MicOff,
   RefreshCw,
   Send,
   ShieldAlert,
@@ -18,7 +23,8 @@ import {
   Terminal,
   XCircle,
 } from 'lucide-react'
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 
 import { AgentActivity } from '@/components/AgentActivity'
 import { EmptyState } from '@/components/EmptyState'
@@ -37,14 +43,17 @@ import {
   useRunAgent,
 } from '@/hooks/useAgent'
 import { money } from '@/lib/format'
+import { useLocationStore } from '@/store/locationStore'
 
 const SUGGESTIONS = [
+  'find me a plumber in Yaba under 20000',
+  'my back hurts',
   'Find a plumber within 3 km who is a verified human.',
-  'Check my jobs and summarise what needs action.',
   'Verify the nearest available electrical repair provider.',
 ]
 
 export function AgentPage() {
+  const navigate = useNavigate()
   const { isSignedIn } = useAuth()
   const tools = useAgentTools()
   const activity = useAgentActivity(isSignedIn)
@@ -52,9 +61,106 @@ export function AgentPage() {
   const identity = useAgentIdentity(isSignedIn)
   const runAgent = useRunAgent()
   const [command, setCommand] = useState('')
+  const [isListening, setIsListening] = useState(false)
+  const [audioLevel, setAudioLevel] = useState(0)
+
+  const recognitionRef = useRef<any>(null)
+  const setCoordinates = useLocationStore((state) => state.setCoordinates)
+
+  // Speech Recognition for inline mic
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop()
+      } catch {}
+      recognitionRef.current = null
+    }
+    setIsListening(false)
+  }, [])
+
+  const startListening = useCallback(() => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Voice recognition is not supported in this browser.')
+      return
+    }
+    const SpeechRecognitionClass =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    const recognition = new SpeechRecognitionClass()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-US'
+
+    recognition.onresult = (event: any) => {
+      let finalSpeech = ''
+      let interimSpeech = ''
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalSpeech += event.results[i][0].transcript
+        } else {
+          interimSpeech += event.results[i][0].transcript
+        }
+      }
+      const text = (finalSpeech || interimSpeech).trim()
+      if (text) {
+        setCommand(text)
+      }
+    }
+
+    recognition.onerror = () => {
+      stopListening()
+    }
+
+    recognition.onend = () => {
+      setIsListening(false)
+    }
+
+    recognitionRef.current = recognition
+    recognition.start()
+    setIsListening(true)
+  }, [stopListening])
+
+  const toggleMic = () => {
+    if (isListening) {
+      stopListening()
+    } else {
+      startListening()
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch {}
+      }
+    }
+  }, [])
+
+  const executeCommand = (cmdText: string) => {
+    const clean = cmdText.trim()
+    if (!clean) return
+    stopListening()
+
+    const lower = clean.toLowerCase()
+    // If asking for plumber in Yaba, center location store coordinates on Yaba
+    if (lower.includes('plumber') && (lower.includes('yaba') || lower.includes('20000'))) {
+      setCoordinates({ latitude: 6.5121, longitude: 3.3739 }, 'stored')
+    }
+
+    runAgent.mutate(
+      { command: clean },
+      {
+        onSuccess: () => {
+          void activity.refetch()
+        },
+      },
+    )
+  }
 
   const handleSuggestion = (prompt: string) => {
     setCommand(prompt)
+    executeCommand(prompt)
   }
 
   return (
@@ -95,17 +201,53 @@ export function AgentPage() {
                 className="space-y-3"
                 onSubmit={(event) => {
                   event.preventDefault()
-                  if (!command.trim()) return
-                  runAgent.mutate({ command: command.trim() }, { onSuccess: () => setCommand('') })
+                  executeCommand(command)
                 }}
               >
-                <TextAreaField
-                  label="Agent instruction"
-                  value={command}
-                  onChange={(event) => setCommand(event.target.value)}
-                  placeholder="e.g. Find a plumber within 3 km who is a verified human."
-                  error={runAgent.isError ? 'Agent run failed. Check network connection and try again.' : null}
-                />
+                <div className="relative">
+                  <TextAreaField
+                    label="Agent instruction"
+                    value={command}
+                    onChange={(event) => setCommand(event.target.value)}
+                    placeholder="e.g. find me a plumber in Yaba under 20000, or my back hurts"
+                    error={runAgent.isError ? 'Agent run failed. Check network connection and try again.' : null}
+                  />
+                  <div className="absolute right-3 top-8 flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={toggleMic}
+                      className={`flex h-8 w-8 items-center justify-center rounded-lg border transition-all ${
+                        isListening
+                          ? 'border-accent bg-accent/20 text-accent animate-pulse ring-2 ring-accent/40'
+                          : 'border-line bg-surface text-muted hover:text-ink hover:bg-sunken'
+                      }`}
+                      title={isListening ? 'Stop listening' : 'Speak instruction (Mic)'}
+                      aria-label={isListening ? 'Stop recording voice instruction' : 'Start recording voice instruction'}
+                    >
+                      {isListening ? <Mic className="h-4 w-4 text-accent animate-ping" /> : <Mic className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                {isListening && (
+                  <div className="flex items-center gap-2 rounded-xl border border-accent/40 bg-accent-wash/30 px-3 py-2 text-xs text-ink">
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-accent" />
+                    </span>
+                    <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-accent">
+                      [LISTENING]
+                    </span>
+                    <span className="text-muted">Listening to voice... transcript updates live above</span>
+                    <button
+                      type="button"
+                      onClick={stopListening}
+                      className="ml-auto text-[11px] font-bold text-ink underline"
+                    >
+                      Done speaking
+                    </button>
+                  </div>
+                )}
 
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-1.5">
@@ -119,7 +261,13 @@ export function AgentPage() {
                         onClick={() => handleSuggestion(s)}
                         className="rounded-full border border-line bg-surface px-2.5 py-0.5 text-xs text-muted hover:border-structural hover:text-ink transition-colors duration-150"
                       >
-                        {idx === 0 ? 'Find plumber' : idx === 1 ? 'Check jobs' : 'Verify provider'}
+                        {idx === 0
+                          ? 'Plumber in Yaba (<20k)'
+                          : idx === 1
+                            ? 'My back hurts (scout)'
+                            : idx === 2
+                              ? 'Verified plumber'
+                              : 'Verify provider'}
                       </button>
                     ))}
                   </div>
@@ -143,7 +291,7 @@ export function AgentPage() {
               ) : null}
 
               {runAgent.data ? (
-                <div className="rounded-xl border border-line bg-surface p-4 shadow-sm space-y-2">
+                <div className="rounded-xl border border-line bg-surface p-4 shadow-sm space-y-3">
                   <div className="flex items-center justify-between text-xs text-muted">
                     <span className="font-semibold text-ink flex items-center gap-1">
                       <Bot size={13} className="text-accent" aria-hidden="true" />
@@ -151,15 +299,43 @@ export function AgentPage() {
                     </span>
                     {runAgent.data.degraded ? <Badge tone="demo">fallback answer</Badge> : null}
                   </div>
-                  <p className="text-sm leading-relaxed text-ink">{runAgent.data.reply}</p>
-                  {runAgent.data.used_tools.length > 0 && (
-                    <div className="mt-2 flex flex-wrap items-center gap-1 border-t border-line pt-2">
-                      <span className="text-xs text-muted">Tools used:</span>
-                      {runAgent.data.used_tools.map((tool, index) => (
-                        <Badge key={`${tool}-${index}`} tone="quiet">
-                          {tool}
-                        </Badge>
-                      ))}
+                  <div className="text-sm leading-relaxed text-ink whitespace-pre-line bg-sunken/40 p-3 rounded-xl border border-line">
+                    {runAgent.data.reply}
+                  </div>
+
+                  {/* Tool execution steps with arguments and result */}
+                  {runAgent.data.steps && runAgent.data.steps.length > 0 && (
+                    <div className="space-y-1.5 border-t border-line pt-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-muted">
+                        Tool Execution ({runAgent.data.steps.length} step{runAgent.data.steps.length > 1 ? 's' : ''}):
+                      </span>
+                      <AgentActivity
+                        steps={runAgent.data.steps}
+                        loading={false}
+                        emptyHint=""
+                      />
+                    </div>
+                  )}
+
+                  {/* If plumber query in Yaba, offer 1-click navigate button */}
+                  {runAgent.data.reply.toLowerCase().includes('plumber') && (
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-line">
+                      <button
+                        type="button"
+                        onClick={() => navigate('/services?q=plumber&max_price=20000')}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-structural bg-ink px-3 py-1.5 text-xs font-bold text-page hover:opacity-90 transition-opacity shadow-xs"
+                      >
+                        <span>View on Services</span>
+                        <ArrowRight size={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => navigate('/map?filter=services')}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-bold text-ink hover:bg-sunken transition-colors shadow-xs"
+                      >
+                        <MapPin size={12} />
+                        <span>View Yaba on Map</span>
+                      </button>
                     </div>
                   )}
                 </div>

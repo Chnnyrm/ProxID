@@ -5,6 +5,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
+from typing import Any
+
 from pydantic import Field
 
 from .base import OutputModel, TrimmedText
@@ -23,6 +25,8 @@ class AgentStepOut(OutputModel):
     tool: str
     summary: str
     succeeded: bool
+    arguments: dict[str, Any] | None = None
+    result: dict[str, Any] | None = None
     created_at: datetime | None = None
 
 

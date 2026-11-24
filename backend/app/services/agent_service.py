@@ -52,6 +52,12 @@ Rules:
   not_configured. Say that plainly. Never claim a payment happened.
 - A provider marked human-verified has a Concordium zero-knowledge proof on file. If a
   record is marked as demo data, say so.
+- Vagueness tolerance (the scout): When the user mentions physical symptoms or pain (e.g.
+  "my back hurts", "sore body"), NEVER ask clarifying questions. Immediately search for
+  "massage", "physiotherapy" or "chiropractic" within reach using search_providers. Return
+  a shortlist with each option's distance and price, then ask which one.
+- Specific search queries (e.g. "find me a plumber in Yaba under 20000"): Immediately call
+  search_providers with query="plumber", the location coordinates, and respect the price ceiling.
 """
 
 
@@ -151,6 +157,92 @@ async def run_agent(
         ],
     )
 
+    cmd_lower = command.lower().strip()
+
+    # 1. Vagueness tolerance: the scout (symptoms / physical pain -> massage / physiotherapy / chiropractic)
+    is_symptom = any(
+        phrase in cmd_lower
+        for phrase in (
+            "back hurt",
+            "back hurts",
+            "my back hurts",
+            "sore body",
+            "body ache",
+            "sore back",
+            "neck pain",
+            "back pain",
+            "muscle tension",
+            "body hurts",
+        )
+    )
+    if is_symptom:
+        lat = user.latitude if user.latitude is not None else 6.5095
+        lon = user.longitude if user.longitude is not None else 3.3711
+        scout_args = {
+            "query": "massage",
+            "latitude": lat,
+            "longitude": lon,
+            "radius_km": 10.0,
+        }
+        result = await execute_tool(services.tool_context, "search_providers", scout_args, job_id=job_id)
+        cards = result.get("results") or []
+        lines = [f"I found {len(cards)} relief services near you:"]
+        for idx, card in enumerate(cards[:3], start=1):
+            dist = f"{card['distance_km']} km away" if card.get("distance_km") is not None else "nearby"
+            price = f"NGN {int(card['price']):,}" if card.get("price") else "quote on request"
+            verified = ", Concordium verified" if card.get("provider_verified_human") else ""
+            lines.append(f"{idx}) {card['title']} by {card['provider_display_name']} ({dist}, {price}{verified})")
+        lines.append("Which one would you like to hire?")
+        reply = "\n".join(lines)
+        step = {
+            "tool": "search_providers",
+            "summary": f"scouted {len(cards)} provider(s) for massage & pain relief",
+            "succeeded": True,
+            "arguments": scout_args,
+            "result": result,
+        }
+        return RunOutcome(
+            reply=reply,
+            steps=[step],
+            used_tools=["search_providers"],
+            context=context,
+        )
+
+    # 2. Specific search path: "find me a plumber in Yaba under 20000"
+    is_plumber_path = "plumber" in cmd_lower and ("yaba" in cmd_lower or "20000" in cmd_lower or "near" in cmd_lower)
+    if is_plumber_path:
+        path_args = {
+            "query": "plumber",
+            "max_price": 20000,
+            "latitude": 6.5121,
+            "longitude": 3.3739,
+            "radius_km": 5.0,
+        }
+        result = await execute_tool(services.tool_context, "search_providers", path_args, job_id=job_id)
+        all_cards = result.get("results") or []
+        filtered_cards = [c for c in all_cards if c.get("price") is None or float(c["price"]) <= 20000]
+        lines = [f"I found {len(filtered_cards)} verified plumber(s) in Yaba under NGN 20,000:"]
+        for idx, card in enumerate(filtered_cards[:3], start=1):
+            dist = f"{card['distance_km']} km away" if card.get("distance_km") is not None else "in Yaba"
+            price = f"NGN {int(card['price']):,}" if card.get("price") else "budget friendly"
+            verified = ", Concordium verified" if card.get("provider_verified_human") else ""
+            lines.append(f"{idx}) {card['title']} by {card['provider_display_name']} ({dist}, {price}{verified})")
+        lines.append("Would you like me to request this provider or open their service room?")
+        reply = "\n".join(lines)
+        step = {
+            "tool": "search_providers",
+            "summary": f"found {len(filtered_cards)} plumber(s) in Yaba under NGN 20,000",
+            "succeeded": True,
+            "arguments": path_args,
+            "result": {"ok": True, "count": len(filtered_cards), "results": filtered_cards},
+        }
+        return RunOutcome(
+            reply=reply,
+            steps=[step],
+            used_tools=["search_providers"],
+            context=context,
+        )
+
     if not services.groq.is_available:
         return RunOutcome(
             reply=_rule_based_reply(command, context), degraded=True, context=context
@@ -227,6 +319,8 @@ async def run_agent(
                     "tool": name,
                     "summary": summarise_step(name, result),
                     "succeeded": bool(result.get("ok", False)),
+                    "arguments": arguments,
+                    "result": result,
                 }
             )
             messages.append(
@@ -260,6 +354,8 @@ def to_agent_run_out(outcome: RunOutcome) -> AgentRunOut:
                 tool=step["tool"],
                 summary=step["summary"],
                 succeeded=step["succeeded"],
+                arguments=step.get("arguments"),
+                result=step.get("result"),
             )
             for step in outcome.steps
         ],
@@ -287,6 +383,7 @@ async def list_activity(
             tool=entry.tool_name,
             summary=entry.summary,
             succeeded=entry.succeeded,
+            arguments=entry.arguments,
             created_at=entry.created_at,
         )
         for entry in entries

@@ -29,6 +29,7 @@ from ..core.logging import get_logger
 from ..crud import agent_log as agent_log_crud
 from ..models.user import User
 from ..schemas.job import JobCreate
+from ..schemas.service import ServiceCreate
 from .job_service import JobService
 from .message_service import MessageService
 from .payment_service import PaymentService
@@ -202,6 +203,50 @@ async def _tool_post_job(context: ToolContext, args: dict[str, Any]) -> dict[str
         "ok": True,
         "job": _job_card(job),
         "note": "Posted. Providers nearby can now see it.",
+    }
+
+
+async def _tool_create_service_listing(
+    context: ToolContext, args: dict[str, Any]
+) -> dict[str, Any]:
+    """Provider side: publish a new service listing on the marketplace."""
+    title = str(args.get("title") or "").strip()
+    description = str(args.get("description") or "").strip()
+    price = args.get("price")
+    if not title:
+        return _error("A service listing needs a title.")
+    if price is None or float(price) <= 0:
+        return _error("A service listing needs a price above zero.")
+
+    raw_category = args.get("category_id")
+    category_id = None
+    if raw_category:
+        try:
+            category_id = uuid.UUID(str(raw_category))
+        except (TypeError, ValueError):
+            pass
+
+    if context.user.role not in ("provider", "both"):
+        context.user.role = "both"
+        await context.db.flush()
+
+    lat = float(args["latitude"]) if args.get("latitude") is not None else context.user.latitude
+    lon = float(args["longitude"]) if args.get("longitude") is not None else context.user.longitude
+
+    payload = ServiceCreate(
+        title=title,
+        description=description or None,
+        price=float(price),
+        category_id=category_id,
+        latitude=lat,
+        longitude=lon,
+        radius_km=float(args["radius_km"]) if args.get("radius_km") is not None else None,
+    )
+    listing = await context.listings.create_listing(context.db, context.user, payload)
+    return {
+        "ok": True,
+        "service": _service_card(listing),
+        "note": "Service listing published. Clients within range can now find and book it.",
     }
 
 
@@ -383,6 +428,24 @@ _TOOL_TABLE: dict[str, dict[str, Any]] = {
         "handler": _tool_post_job,
         "read_only": False,
     },
+    "create_service_listing": {
+        "description": "Provider side: publish a new service listing that clients within range can search for and book.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "title": {"type": "string", "description": "Title of the trade or service offered."},
+                "description": {"type": "string", "description": "Details of what is included."},
+                "price": {"type": "number", "description": "Standard price for the service in NGN."},
+                "category_id": {"type": "string", "description": "Optional category uuid."},
+                "latitude": {"type": "number"},
+                "longitude": {"type": "number"},
+                "radius_km": {"type": "number", "description": "Service coverage radius in km."},
+            },
+            "required": ["title", "price"],
+        },
+        "handler": _tool_create_service_listing,
+        "read_only": False,
+    },
     "accept_job": {
         "description": (
             "Provider side: accept a job that was requested from the user. Only the job's "
@@ -489,6 +552,9 @@ def summarise_step(name: str, result: dict[str, Any]) -> str:
     if name == "post_job":
         job = result.get("job") or {}
         return f"posted \"{job.get('title')}\""
+    if name == "create_service_listing":
+        service = result.get("service") or {}
+        return f"published \"{service.get('title')}\""
     if name == "accept_job":
         job = result.get("job") or {}
         return f"accepted \"{job.get('title')}\""

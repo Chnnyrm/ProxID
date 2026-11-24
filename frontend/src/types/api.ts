@@ -152,6 +152,8 @@ export interface AgentStep {
   tool: string
   summary: string
   succeeded: boolean
+  arguments?: Record<string, any> | null
+  result?: Record<string, any> | null
   created_at: string | null
 }
 

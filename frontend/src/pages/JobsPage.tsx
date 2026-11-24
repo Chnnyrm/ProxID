@@ -145,6 +145,49 @@ export function JobsPage() {
         />
       ) : null}
 
+      {/* Radius in Effect & Geolocation Control */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-sunken/40 px-3.5 py-2">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-structural" />
+          <span className="font-mono text-xs font-bold uppercase tracking-wider text-ink">
+            {radiusKm > 0 ? `${radiusKm} km radius in effect` : 'Global radius active'}
+          </span>
+          <span className="text-[11px] text-muted hidden sm:inline">
+            // based on your active location
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {/* Quick radius buttons */}
+          <div className="flex items-center rounded-lg border border-line bg-surface p-0.5 text-[11px] font-mono">
+            {[2, 5, 10, 20].map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRadiusKm(r)}
+                className={`rounded-md px-2 py-0.5 transition-colors ${
+                  radiusKm === r
+                    ? 'bg-ink font-bold text-page'
+                    : 'text-muted hover:text-ink'
+                }`}
+              >
+                {r}km
+              </button>
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => void requestDeviceLocation()}
+            className="inline-flex h-7 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-[11px] font-medium text-ink hover:bg-sunken transition-colors shadow-xs"
+            title="Update to device location"
+          >
+            <MapPin size={12} />
+            <span>Nearby</span>
+          </button>
+        </div>
+      </div>
+
       {/* Tabs and Search Controls */}
       <div className="mt-5 space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -337,32 +380,53 @@ export function JobsPage() {
               onRetry={() => void currentQuery.refetch()}
             />
           ) : processedJobs.length === 0 ? (
-            <EmptyState
-              icon={<Briefcase size={22} />}
-              title={
-                hasActiveFilters
-                  ? 'No jobs match your filter'
-                  : tab === 'mine'
-                    ? 'No jobs posted yet'
-                    : 'No open jobs in this area yet'
-              }
-              description={
-                hasActiveFilters
-                  ? 'Try clearing your search terms or picking All Categories to see available requests.'
-                  : tab === 'mine'
-                    ? 'Post your first job request to hire verified local professionals.'
-                    : 'Be the first to post a job in this neighbourhood, or widen your distance radius.'
-              }
-              actionLabel={hasActiveFilters ? 'Clear filters' : 'Post a job'}
-              onAction={
-                hasActiveFilters
-                  ? () => {
-                      setSelectedCategory('all')
-                      setSearchQuery('')
-                    }
-                  : () => setShowForm(true)
-              }
-            />
+            <div className="space-y-3">
+              <EmptyState
+                icon={<Briefcase size={22} />}
+                title={
+                  hasActiveFilters
+                    ? 'No jobs match your filter'
+                    : tab === 'mine'
+                      ? 'No jobs posted yet'
+                      : `No open jobs within ${radiusKm} km`
+                }
+                description={
+                  hasActiveFilters
+                    ? 'Try clearing your search terms or picking All Categories to see available requests.'
+                    : tab === 'mine'
+                      ? 'Post your first job request to hire verified local professionals.'
+                      : 'Be the first to post a job in this neighbourhood, or widen your distance radius.'
+                }
+                actionLabel={hasActiveFilters ? 'Clear filters' : 'Post a job'}
+                onAction={
+                  hasActiveFilters
+                    ? () => {
+                        setSelectedCategory('all')
+                        setSearchQuery('')
+                      }
+                    : () => setShowForm(true)
+                }
+              />
+              {/* One-tap way to widen radius */}
+              {tab === 'nearby' && (
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setRadiusKm(15)}
+                    className="rounded-lg border border-structural bg-ink px-3.5 py-1.5 text-xs font-bold text-page hover:opacity-90 transition-opacity shadow-xs"
+                  >
+                    Widen radius to 15 km
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRadiusKm(25)}
+                    className="rounded-lg border border-line bg-surface px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-sunken transition-colors shadow-xs"
+                  >
+                    Expand to 25 km
+                  </button>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
               {processedJobs.map((job) => (
