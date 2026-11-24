@@ -1,32 +1,43 @@
 /**
- * Jobs: what is open nearby, what you posted, and the form to post one.
+ * JobsPage.tsx
  *
- * The list is the primary surface; the map is beside it on a wide screen and above it on
- * a phone, and both read the same query so the two cannot disagree.
+ * Jobs: browse nearby work, filter by category and search, view your posted work,
+ * and post new requests with category attribution.
+ *
+ * Matches Gigr list patterns: responsive, skeletons, empty states, instant feedback.
  */
 
-import { Plus } from 'lucide-react'
+import { Briefcase, Clock, Filter, MapPin, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
 import { useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 
-import { JobCard } from '@/components/JobCard'
 import { EmptyState } from '@/components/EmptyState'
+import { ErrorState } from '@/components/ErrorState'
+import { JobCard } from '@/components/JobCard'
 import { NeighborhoodMap, type MapPoint } from '@/components/map/NeighborhoodMap'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { TextAreaField, TextField } from '@/components/ui/input'
 import { CardSkeletonList } from '@/components/ui/skeleton'
-import { useBrowseJobs, useNearbyJobs, usePostJob } from '@/hooks/useJobs'
 import { useAuth } from '@/hooks/useAuth'
-import { useLocationStore, RADIUS_CHOICES } from '@/store/locationStore'
+import { useBrowseJobs, useMyJobs, useNearbyJobs, usePostJob } from '@/hooks/useJobs'
+import { useCategories } from '@/hooks/useProviders'
 import { money } from '@/lib/format'
+import { RADIUS_CHOICES, useLocationStore } from '@/store/locationStore'
+import type { Job } from '@/types/api'
 
-type Tab = 'nearby' | 'all'
+type Tab = 'nearby' | 'browse' | 'mine'
+type SortOrder = 'newest' | 'price_high' | 'price_low'
 
 export function JobsPage() {
   const { isSignedIn } = useAuth()
   const [tab, setTab] = useState<Tab>('nearby')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState<string>('all')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('newest')
   const [showForm, setShowForm] = useState(false)
+  const [showFilters, setShowFilters] = useState(false)
 
   const coordinates = useLocationStore((state) => state.coordinates)
   const radiusKm = useLocationStore((state) => state.radiusKm)
@@ -36,12 +47,48 @@ export function JobsPage() {
 
   const nearby = useNearbyJobs()
   const browse = useBrowseJobs()
-  const active = tab === 'nearby' ? nearby : browse
-  const jobs = active.data ?? []
+  const mine = useMyJobs(isSignedIn)
+  const { data: categories = [] } = useCategories()
+
+  const currentQuery = tab === 'nearby' ? nearby : tab === 'browse' ? browse : mine
+  const rawJobs: Job[] = currentQuery.data ?? []
+
+  // Filter and sort jobs locally for instant response
+  const processedJobs = useMemo(() => {
+    let list = [...rawJobs]
+
+    // Category filter
+    if (selectedCategory !== 'all') {
+      list = list.filter((j) => j.category_id === selectedCategory || j.category_name?.toLowerCase() === selectedCategory.toLowerCase())
+    }
+
+    // Text search
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      list = list.filter(
+        (j) =>
+          j.title.toLowerCase().includes(q) ||
+          (j.description && j.description.toLowerCase().includes(q)) ||
+          (j.category_name && j.category_name.toLowerCase().includes(q)),
+      )
+    }
+
+    // Sort order
+    if (sortOrder === 'price_high') {
+      list.sort((a, b) => (b.price ?? 0) - (a.price ?? 0))
+    } else if (sortOrder === 'price_low') {
+      list.sort((a, b) => (a.price ?? 0) - (b.price ?? 0))
+    } else {
+      // newest first
+      list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    }
+
+    return list
+  }, [rawJobs, selectedCategory, searchQuery, sortOrder])
 
   const points = useMemo<MapPoint[]>(
     () =>
-      jobs
+      processedJobs
         .filter((job) => job.latitude !== null && job.longitude !== null)
         .map((job) => ({
           id: job.id,
@@ -56,112 +103,279 @@ export function JobsPage() {
           isDemo: job.is_demo,
           href: `/jobs/${job.id}`,
         })),
-    [jobs],
+    [processedJobs],
   )
+
+  const hasActiveFilters = searchQuery.trim().length > 0 || selectedCategory !== 'all' || (tab === 'nearby' && radiusKm !== 5)
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6">
+      {/* Page Header */}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-ink">Jobs</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">Jobs</h1>
           <p className="mt-1 text-sm text-muted">
             {source === 'demo'
-              ? 'Showing the demo neighbourhood in Yaba, Lagos. Share your own location for real distances.'
-              : 'Around your shared location, nearest first.'}
+              ? 'Showing jobs in Yaba, Lagos. Share your location for live neighborhood proximity.'
+              : 'Browse open requests around your location, nearest first.'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button intent="secondary" size="sm" onClick={() => void requestDeviceLocation()}>
-            Use my location
+            <MapPin size={14} aria-hidden="true" />
+            <span>Use my location</span>
           </Button>
           <Button size="sm" onClick={() => setShowForm((open) => !open)}>
             <Plus size={15} aria-hidden="true" />
-            Post a job
+            <span>Post a job</span>
           </Button>
         </div>
       </div>
 
+      {/* Inline Post a Job Form */}
       {showForm ? (
-        <PostJobForm onDone={() => setShowForm(false)} isSignedIn={isSignedIn} />
+        <PostJobForm
+          onDone={() => setShowForm(false)}
+          isSignedIn={isSignedIn}
+          categories={categories}
+        />
       ) : null}
 
-      <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_1fr]">
-        <div className="min-w-0">
-          <div className="mb-3 flex flex-wrap items-center gap-2">
-            <div role="tablist" aria-label="Job list" className="flex gap-1">
-              {(['nearby', 'all'] as Tab[]).map((option) => (
-                <button
-                  key={option}
-                  role="tab"
-                  aria-selected={tab === option}
-                  onClick={() => setTab(option)}
-                  className={`rounded-full border px-3 py-1 text-sm font-medium transition-colors duration-200 ease-house ${
-                    tab === option
-                      ? 'border-structural bg-accent text-accent-ink'
-                      : 'border-line bg-surface text-ink hover:bg-accent-wash'
-                  }`}
-                >
-                  {option === 'nearby' ? 'Nearby' : 'Everything open'}
-                </button>
-              ))}
-            </div>
-            {tab === 'nearby' ? (
-              <div className="flex flex-wrap gap-1">
-                {RADIUS_CHOICES.map((choice) => (
-                  <button
-                    key={choice}
-                    onClick={() => setRadiusKm(choice)}
-                    aria-pressed={radiusKm === choice}
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium transition-colors duration-200 ease-house ${
-                      radiusKm === choice ? 'bg-sunken text-ink' : 'text-muted hover:text-ink'
-                    }`}
-                  >
-                    {choice === 0 ? 'Any' : choice < 1 ? `${choice * 1000} m` : `${choice} km`}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+      {/* Tabs and Search Controls */}
+      <div className="mt-5 space-y-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {/* Main Tabs */}
+          <div
+            role="tablist"
+            aria-label="Job views"
+            className="flex rounded-xl border border-line bg-sunken/50 p-1"
+          >
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'nearby'}
+              onClick={() => setTab('nearby')}
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ease-house ${
+                tab === 'nearby'
+                  ? 'bg-structural text-page shadow-sm'
+                  : 'text-muted hover:text-ink'
+              }`}
+            >
+              Nearby
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'browse'}
+              onClick={() => setTab('browse')}
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ease-house ${
+                tab === 'browse'
+                  ? 'bg-structural text-page shadow-sm'
+                  : 'text-muted hover:text-ink'
+              }`}
+            >
+              Browse All
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={tab === 'mine'}
+              onClick={() => setTab('mine')}
+              className={`rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all duration-200 ease-house ${
+                tab === 'mine'
+                  ? 'bg-structural text-page shadow-sm'
+                  : 'text-muted hover:text-ink'
+              }`}
+            >
+              My Jobs
+            </button>
           </div>
 
-          {active.isLoading ? (
+          {/* Quick Search and Filter Toggle */}
+          <div className="flex flex-1 items-center justify-end gap-2 sm:max-w-xs">
+            <div className="relative w-full">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted"
+                aria-hidden="true"
+              />
+              <input
+                type="text"
+                placeholder="Search jobs..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-xl border border-line bg-surface py-1.5 pl-8 pr-3 text-xs text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-accent"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  aria-label="Clear search"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted hover:text-ink"
+                >
+                  <X size={12} />
+                </button>
+              ) : null}
+            </div>
+
+            <Button
+              intent={showFilters || hasActiveFilters ? 'primary' : 'secondary'}
+              size="sm"
+              onClick={() => setShowFilters((open) => !open)}
+              aria-label="Filter options"
+              className="shrink-0"
+            >
+              <SlidersHorizontal size={14} aria-hidden="true" />
+              <span className="hidden sm:inline">Filters</span>
+            </Button>
+          </div>
+        </div>
+
+        {/* Category Pills Bar */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
+          <button
+            type="button"
+            onClick={() => setSelectedCategory('all')}
+            className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200 ease-house ${
+              selectedCategory === 'all'
+                ? 'border-structural bg-accent text-accent-ink font-semibold'
+                : 'border-line bg-surface text-ink hover:bg-accent-wash'
+            }`}
+          >
+            All Categories
+          </button>
+          {categories.map((cat) => (
+            <button
+              key={cat.id}
+              type="button"
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors duration-200 ease-house ${
+                selectedCategory === cat.id
+                  ? 'border-structural bg-accent text-accent-ink font-semibold'
+                  : 'border-line bg-surface text-ink hover:bg-accent-wash'
+              }`}
+            >
+              {cat.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Collapsible Secondary Filters (Radius & Sort) */}
+        {showFilters ? (
+          <div className="rounded-xl border border-line bg-surface p-3.5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
+              {tab === 'nearby' ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="font-medium text-muted uppercase tracking-wider text-[10px]">
+                    Radius:
+                  </span>
+                  {RADIUS_CHOICES.map((choice) => (
+                    <button
+                      key={choice}
+                      type="button"
+                      onClick={() => setRadiusKm(choice)}
+                      className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors duration-200 ${
+                        radiusKm === choice
+                          ? 'bg-structural text-page font-semibold'
+                          : 'bg-sunken/60 text-muted hover:text-ink'
+                      }`}
+                    >
+                      {choice === 0 ? 'Any' : choice < 1 ? `${choice * 1000} m` : `${choice} km`}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className="flex items-center gap-2">
+                <span className="font-medium text-muted uppercase tracking-wider text-[10px]">
+                  Sort:
+                </span>
+                <select
+                  value={sortOrder}
+                  onChange={(e) => setSortOrder(e.target.value as SortOrder)}
+                  className="rounded-lg border border-line bg-surface px-2.5 py-1 text-xs text-ink focus:outline-none"
+                >
+                  <option value="newest">Newest first</option>
+                  <option value="price_high">Price: High to Low</option>
+                  <option value="price_low">Price: Low to High</option>
+                </select>
+              </div>
+
+              {hasActiveFilters ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedCategory('all')
+                    setSearchQuery('')
+                    setRadiusKm(5)
+                    setSortOrder('newest')
+                  }}
+                  className="text-xs text-accent font-semibold hover:underline"
+                >
+                  Reset all filters
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Main Grid: List + Map */}
+      <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_1fr]">
+        {/* Left Column: Job Feed */}
+        <div className="min-w-0 space-y-4">
+          {currentQuery.isLoading ? (
             <CardSkeletonList count={4} />
-          ) : active.isError ? (
-            <EmptyState
+          ) : currentQuery.isError ? (
+            <ErrorState
               title="We could not load the jobs"
-              body="Nothing was changed. Check your connection, then try again."
-              action={
-                <Button intent="secondary" onClick={() => void active.refetch()}>
-                  Try again
-                </Button>
-              }
+              message="Nothing was changed. Check your connection, then try again."
+              onRetry={() => void currentQuery.refetch()}
             />
-          ) : jobs.length === 0 ? (
+          ) : processedJobs.length === 0 ? (
             <EmptyState
-              title="No open jobs here yet"
-              body="Widen the radius, or post the first one. A job posted here appears for providers within their own reach."
-              action={
-                <Button onClick={() => setShowForm(true)}>
-                  <Plus size={15} aria-hidden="true" />
-                  Post a job
-                </Button>
+              icon={<Briefcase size={22} />}
+              title={
+                hasActiveFilters
+                  ? 'No jobs match your filter'
+                  : tab === 'mine'
+                    ? 'No jobs posted yet'
+                    : 'No open jobs in this area yet'
+              }
+              description={
+                hasActiveFilters
+                  ? 'Try clearing your search terms or picking All Categories to see available requests.'
+                  : tab === 'mine'
+                    ? 'Post your first job request to hire verified local professionals.'
+                    : 'Be the first to post a job in this neighbourhood, or widen your distance radius.'
+              }
+              actionLabel={hasActiveFilters ? 'Clear filters' : 'Post a job'}
+              onAction={
+                hasActiveFilters
+                  ? () => {
+                      setSelectedCategory('all')
+                      setSearchQuery('')
+                    }
+                  : () => setShowForm(true)
               }
             />
           ) : (
             <div className="grid gap-3 sm:grid-cols-2">
-              {jobs.map((job) => (
+              {processedJobs.map((job) => (
                 <JobCard key={job.id} job={job} />
               ))}
             </div>
           )}
         </div>
 
+        {/* Right Column: Interactive Map */}
         <div className="min-w-0 lg:sticky lg:top-20 lg:self-start">
           <NeighborhoodMap
             center={coordinates}
             radiusKm={radiusKm}
             points={points}
-            loading={active.isLoading}
-            height={380}
+            loading={currentQuery.isLoading}
+            height={420}
           />
         </div>
       </div>
@@ -169,89 +383,139 @@ export function JobsPage() {
   )
 }
 
-/** The post-a-job form. Prices are in the job's own currency, never converted. */
-function PostJobForm({ onDone, isSignedIn }: { onDone: () => void; isSignedIn: boolean }) {
+/** The post-a-job form with category selection and immediate feedback. */
+function PostJobForm({
+  onDone,
+  isSignedIn,
+  categories,
+}: {
+  onDone: () => void
+  isSignedIn: boolean
+  categories: Array<{ id: string; name: string }>
+}) {
   const coordinates = useLocationStore((state) => state.coordinates)
   const post = usePostJob()
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
+  const [categoryId, setCategoryId] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [submitting, setSubmitting] = useState(false)
 
-  const submit = (event: React.FormEvent) => {
+  const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     const next: Record<string, string> = {}
     if (title.trim().length < 4) next.title = 'Give the job a title of at least 4 characters.'
-    if (description.trim().length < 10) next.description = 'Describe the work, at least 10 characters.'
+    if (description.trim().length < 10) next.description = 'Describe the work in at least 10 characters.'
     const amount = Number(price)
     if (!Number.isFinite(amount) || amount <= 0) next.price = 'Set a budget above zero.'
     setErrors(next)
     if (Object.keys(next).length > 0) return
-    post.mutate(
-      {
+
+    setSubmitting(true)
+    try {
+      await post.mutateAsync({
         title: title.trim(),
         description: description.trim(),
         price: amount,
+        category_id: categoryId || undefined,
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
-      },
-      {
-        onSuccess: () => {
-          setTitle('')
-          setDescription('')
-          setPrice('')
-          onDone()
-        },
-      },
-    )
+      })
+      setTitle('')
+      setDescription('')
+      setPrice('')
+      onDone()
+    } catch {
+      // error handled by mutation
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
     <Card className="mt-4 animate-fade-rise">
-      <CardHeader title="Post a job" hint="Providers within reach of this point will see it." />
+      <CardHeader title="Post a job" hint="Verified providers in this area will see your request." />
       <CardBody>
         {!isSignedIn ? (
           <p className="mb-3 rounded-xl border border-line bg-accent-wash p-3 text-sm text-ink">
-            Sign in first. The judge demo takes one click and needs no account.
+            Sign in first. The demo account takes one click from the sign-in modal.
           </p>
         ) : null}
-        <form className="space-y-3" onSubmit={submit} noValidate>
+        <form className="space-y-3" onSubmit={(e) => void submit(e)} noValidate>
           <TextField
             label="Title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
             error={errors.title ?? null}
-            placeholder="Fix the kitchen sink leak"
+            placeholder="Fix kitchen sink pipe leak"
+            disabled={submitting}
+            required
           />
+
+          {categories.length > 0 ? (
+            <div>
+              <label htmlFor="job-category-select" className="mb-1 block text-sm font-medium text-ink">
+                Category
+              </label>
+              <select
+                id="job-category-select"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                disabled={submitting}
+                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:outline-none"
+              >
+                <option value="">Select a category (optional)</option>
+                {categories.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : null}
+
           <TextAreaField
             label="What needs doing"
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             error={errors.description ?? null}
-            placeholder="Water is pooling under the sink. I am home after 5pm."
+            placeholder="Water is pooling beneath the kitchen trap. Available evenings after 5pm."
+            disabled={submitting}
+            required
           />
+
           <TextField
             label="Budget"
             inputMode="decimal"
             value={price}
             onChange={(event) => setPrice(event.target.value)}
             error={errors.price ?? null}
-            hint={`In ${'NGN'}. Shown as ${money(Number(price) || 0)}.`}
-            placeholder="12000"
+            hint={`In NGN. Displayed as ${money(Number(price) || 0)}.`}
+            placeholder="15000"
+            disabled={submitting}
+            required
           />
+
           {post.isError ? (
-            <p role="alert" className="rounded-xl border border-line bg-accent-wash p-3 text-sm text-ink">
-              We could not post that job. Nothing was saved. Check the fields and try again.
+            <p role="alert" className="rounded-xl border border-line bg-accent-wash p-3 text-xs text-ink">
+              We could not post that job. Check the details and try again.
             </p>
           ) : null}
-          <div className="flex flex-wrap items-center gap-2">
-            <Button type="submit" loading={post.isPending} disabled={!isSignedIn}>
+
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Button
+              type="submit"
+              loading={submitting || post.isPending}
+              loadingText="Posting job..."
+              disabled={!isSignedIn || submitting}
+            >
               Post it
             </Button>
-            <Button type="button" intent="ghost" onClick={onDone}>
+            <Button type="button" intent="ghost" onClick={onDone} disabled={submitting}>
               Cancel
             </Button>
-            <Badge tone="quiet">Posted at your current map centre</Badge>
+            <Badge tone="quiet">Targeted to your current map location</Badge>
           </div>
         </form>
       </CardBody>

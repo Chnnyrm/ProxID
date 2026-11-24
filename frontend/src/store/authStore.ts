@@ -24,6 +24,14 @@ interface AuthState {
   register: (email: string, password: string, displayName: string) => Promise<boolean>
   google: (accessToken: string) => Promise<boolean>
   demoLogin: () => Promise<boolean>
+  updateProfile: (data: {
+    display_name?: string
+    bio?: string
+    avatar_url?: string
+    neighbourhood?: string
+    latitude?: number
+    longitude?: number
+  }) => Promise<boolean>
   logout: () => Promise<void>
   clearError: () => void
 }
@@ -89,6 +97,18 @@ export const useAuthStore = create<AuthState>((set) => ({
     try {
       const session = await authService.demoLogin()
       set({ user: session.user, status: 'signed-in' })
+      return true
+    } catch (error) {
+      set({ error: messageOf(error) })
+      return false
+    }
+  },
+
+  updateProfile: async (data) => {
+    set({ error: null })
+    try {
+      const updated = await authService.updateProfile(data)
+      set({ user: updated })
       return true
     } catch (error) {
       set({ error: messageOf(error) })

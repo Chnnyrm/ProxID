@@ -6,22 +6,67 @@
  * the job is with, what the next legal action is, and whether anything has settled.
  */
 
-import { ArrowLeft, Bot, Send } from 'lucide-react'
+import {
+  ArrowLeft,
+  Bot,
+  CheckCircle2,
+  Circle,
+  Clock,
+  HelpCircle,
+  MessageSquare,
+  Send,
+  ShieldCheck,
+  Sparkles,
+} from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { AgentActivity } from '@/components/AgentActivity'
+import { EmptyState } from '@/components/EmptyState'
+import { ErrorState } from '@/components/ErrorState'
 import { PaymentPanel } from '@/components/PaymentPanel'
 import { DemoBadge, VerifiedBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
 import { TextAreaField } from '@/components/ui/input'
-import { Skeleton, TextSkeleton } from '@/components/ui/skeleton'
+import { JobRoomSkeleton, TextSkeleton } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/useAuth'
 import { useAgentActivity, useRunAgent } from '@/hooks/useAgent'
 import { useChangeJobStatus, useJobRoom, useSendMessage } from '@/hooks/useJobs'
 import { clockTime, money, statusLabel } from '@/lib/format'
+
+interface MilestoneStep {
+  id: string
+  label: string
+  description: string
+}
+
+const MILESTONES: MilestoneStep[] = [
+  { id: 'open', label: 'Posted', description: 'Available for matching' },
+  { id: 'assigned', label: 'Assigned', description: 'Provider confirmed' },
+  { id: 'in_progress', label: 'In Progress', description: 'Work underway' },
+  { id: 'completed', label: 'Completed', description: 'Delivered & verified' },
+]
+
+function getStepIndex(status: string): number {
+  switch (status) {
+    case 'open':
+    case 'requested':
+      return 0
+    case 'assigned':
+      return 1
+    case 'in_progress':
+      return 2
+    case 'completed':
+      return 3
+    case 'cancelled':
+    case 'disputed':
+      return -1
+    default:
+      return 0
+  }
+}
 
 export function JobRoomPage() {
   const { jobId } = useParams<{ jobId: string }>()
@@ -33,6 +78,7 @@ export function JobRoomPage() {
   const runAgent = useRunAgent()
   const [draft, setDraft] = useState('')
   const [command, setCommand] = useState('')
+  const [pendingAction, setPendingAction] = useState<string | null>(null)
   const threadEnd = useRef<HTMLDivElement | null>(null)
 
   const messageCount = room.data?.messages.length ?? 0
@@ -42,10 +88,8 @@ export function JobRoomPage() {
 
   if (room.isLoading) {
     return (
-      <div className="mx-auto max-w-5xl space-y-4 px-4 py-6">
-        <Skeleton className="h-8 w-1/2" />
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
+      <div className="mx-auto max-w-5xl px-4 py-6">
+        <JobRoomSkeleton />
       </div>
     )
   }
@@ -53,13 +97,11 @@ export function JobRoomPage() {
   if (room.isError || !room.data) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10">
-        <h1 className="text-xl font-semibold text-ink">We could not open that job room</h1>
-        <p className="mt-1 text-sm text-muted">
-          It may have been removed, or it may not be yours. Nothing was changed.
-        </p>
-        <Button className="mt-4" intent="secondary" onClick={() => void room.refetch()}>
-          Try again
-        </Button>
+        <ErrorState
+          title="We could not open that job room"
+          message="It may have been removed, or it may not be yours. Nothing was changed."
+          onRetry={() => void room.refetch()}
+        />
       </div>
     )
   }
@@ -68,25 +110,87 @@ export function JobRoomPage() {
   const isClient = user?.id === job.client_id
   const isProvider = user?.id === job.provider_id
   const canPay = isClient && job.status === 'assigned'
+  const currentStep = getStepIndex(job.status)
+  const isTerminal = job.status === 'cancelled' || job.status === 'disputed'
+
+  const handleStatusChange = (nextStatus: string, actionName: string) => {
+    setPendingAction(actionName)
+    changeStatus.mutate(
+      { status: nextStatus },
+      {
+        onSettled: () => setPendingAction(null),
+      },
+    )
+  }
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">
-      <Link to="/jobs" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
-        <ArrowLeft size={14} aria-hidden="true" /> All jobs
+      <Link
+        to="/jobs"
+        className="inline-flex items-center gap-1.5 text-sm text-muted hover:text-ink transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <ArrowLeft size={14} aria-hidden="true" />
+        All jobs
       </Link>
 
-      <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+      <div className="mt-3 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold leading-tight tracking-tight text-ink">{job.title}</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-ink">{job.title}</h1>
+            <Badge tone="neutral">{statusLabel(job.status)}</Badge>
+            {provider ? <VerifiedBadge verified={provider.concordium_verified} /> : null}
+            <DemoBadge isDemo={job.is_demo} />
+          </div>
           <p className="mt-1 text-sm text-muted">
             {money(job.price, job.currency)} - posted by {client.display_name}
-            {provider ? ` - with ${provider.display_name}` : ' - no provider yet'}
+            {provider ? ` - with ${provider.display_name}` : ' - no provider assigned yet'}
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Badge tone="neutral">{statusLabel(job.status)}</Badge>
-          {provider ? <VerifiedBadge verified={provider.concordium_verified} /> : null}
-          <DemoBadge isDemo={job.is_demo} />
+      </div>
+
+      {/* Lifecycle Milestones */}
+      <div className="mt-5 rounded-2xl border border-line bg-surface p-4 shadow-sm">
+        <div className="flex items-center justify-between gap-2 pb-3 border-b border-line">
+          <div className="flex items-center gap-2">
+            <Sparkles size={16} className="text-accent" aria-hidden="true" />
+            <span className="text-xs font-semibold uppercase tracking-wider text-muted">Contract Lifecycle</span>
+          </div>
+          <span className="text-xs text-muted">
+            {isTerminal ? `Job is ${job.status}` : `Step ${currentStep + 1} of 4: ${MILESTONES[currentStep]?.label}`}
+          </span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {MILESTONES.map((step, idx) => {
+            const isDone = !isTerminal && currentStep > idx
+            const isCurrent = !isTerminal && currentStep === idx
+            return (
+              <div
+                key={step.id}
+                className={`relative rounded-xl border p-3 transition-colors ${
+                  isCurrent
+                    ? 'border-structural bg-accent-wash/30'
+                    : isDone
+                      ? 'border-line bg-sunken/40'
+                      : 'border-line/60 bg-surface opacity-75'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  {isDone ? (
+                    <CheckCircle2 size={16} className="shrink-0 text-accent" aria-hidden="true" />
+                  ) : isCurrent ? (
+                    <Circle size={16} className="shrink-0 text-ink fill-accent" aria-hidden="true" />
+                  ) : (
+                    <Circle size={16} className="shrink-0 text-muted" aria-hidden="true" />
+                  )}
+                  <span className={`text-xs font-semibold ${isCurrent ? 'text-ink' : isDone ? 'text-ink' : 'text-muted'}`}>
+                    {step.label}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] leading-tight text-muted">{step.description}</p>
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -95,58 +199,74 @@ export function JobRoomPage() {
           {job.description ? (
             <Card>
               <CardBody>
-                <p className="whitespace-pre-line text-sm text-ink">{job.description}</p>
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-muted">Scope of Work</h2>
+                <p className="mt-2 whitespace-pre-line text-sm leading-relaxed text-ink">{job.description}</p>
               </CardBody>
             </Card>
           ) : null}
 
+          {/* Messages Thread */}
           <Card>
             <CardHeader
-              title="Job room"
+              title="Job room messages"
               hint={
                 provider
-                  ? `${client.display_name} and ${provider.display_name}. Messages are visible to both.`
-                  : 'Waiting for a provider to accept.'
+                  ? `${client.display_name} and ${provider.display_name}. Visible to both parties.`
+                  : 'Waiting for a provider to accept this job.'
               }
               action={<Badge tone="quiet">{messages.length} messages</Badge>}
             />
-            <CardBody className="space-y-3">
-              <ol className="max-h-[26rem] space-y-2 overflow-y-auto pr-1">
+            <CardBody className="space-y-4">
+              <div className="max-h-[28rem] space-y-3 overflow-y-auto pr-1">
                 {messages.length === 0 ? (
-                  <li className="text-sm text-muted">
-                    No messages yet. Say what you need and when you are available.
-                  </li>
+                  <EmptyState
+                    icon={<MessageSquare size={20} />}
+                    title="No messages in this room yet"
+                    description="Say what you need, agree on scope, and confirm availability."
+                  />
                 ) : (
                   messages.map((message) => {
                     const mine = message.sender_id === user?.id
                     const fromAgent = message.author_kind === 'agent'
                     return (
-                      <li
+                      <div
                         key={message.id}
-                        className={`animate-fade-rise rounded-xl border p-3 text-sm ${
+                        className={`rounded-2xl border p-3.5 text-sm transition-shadow duration-150 ${
                           fromAgent
-                            ? 'border-accent bg-accent-wash'
+                            ? 'border-accent bg-accent-wash text-ink'
                             : mine
-                              ? 'border-line bg-sunken/50'
-                              : 'border-line bg-surface'
+                              ? 'ml-auto max-w-[85%] border-structural bg-surface text-ink shadow-sm'
+                              : 'mr-auto max-w-[85%] border-line bg-sunken/40 text-ink'
                         }`}
                       >
-                        <div className="flex items-center justify-between gap-2 text-xs text-muted">
-                          <span className="font-medium text-ink">
-                            {fromAgent ? 'ProxID agent' : message.sender_display_name ?? 'Someone'}
+                        <div className="flex items-center justify-between gap-3 text-xs text-muted">
+                          <span className="font-semibold text-ink flex items-center gap-1">
+                            {fromAgent ? (
+                              <>
+                                <Bot size={13} className="text-accent" aria-hidden="true" />
+                                ProxID Agent
+                              </>
+                            ) : mine ? (
+                              'You'
+                            ) : (
+                              message.sender_display_name ?? 'Participant'
+                            )}
                           </span>
-                          <span>{clockTime(message.created_at)}</span>
+                          <span className="flex items-center gap-1">
+                            <Clock size={11} aria-hidden="true" />
+                            {clockTime(message.created_at)}
+                          </span>
                         </div>
-                        <p className="mt-1 whitespace-pre-line text-ink">{message.body}</p>
-                      </li>
+                        <p className="mt-1.5 whitespace-pre-line text-sm leading-relaxed">{message.body}</p>
+                      </div>
                     )
                   })
                 )}
                 <div ref={threadEnd} />
-              </ol>
+              </div>
 
               <form
-                className="space-y-2"
+                className="space-y-2 border-t border-line pt-3"
                 onSubmit={(event) => {
                   event.preventDefault()
                   if (!draft.trim()) return
@@ -154,81 +274,131 @@ export function JobRoomPage() {
                 }}
               >
                 <TextAreaField
-                  label="Reply in the room"
+                  label="Reply in this room"
                   value={draft}
                   onChange={(event) => setDraft(event.target.value)}
-                  placeholder="Confirm the time, or ask a question."
-                  error={sendMessage.isError ? 'We could not send that. Nothing was posted. Try again.' : null}
+                  placeholder="Confirm arrival time, ask clarifying questions, or update progress..."
+                  error={sendMessage.isError ? 'We could not send that. Nothing was posted. Please try again.' : null}
                 />
-                <Button type="submit" loading={sendMessage.isPending} disabled={!draft.trim()}>
-                  <Send size={15} aria-hidden="true" />
-                  Send
-                </Button>
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    loading={sendMessage.isPending}
+                    loadingLabel="Sending..."
+                    disabled={!draft.trim() || sendMessage.isPending}
+                  >
+                    <Send size={14} aria-hidden="true" />
+                    Send message
+                  </Button>
+                </div>
               </form>
             </CardBody>
           </Card>
         </div>
 
         <div className="min-w-0 space-y-4">
+          {/* Next Action Box */}
           <Card>
-            <CardHeader title="Next action" hint="Only the moves the other side can see." />
-            <CardBody className="flex flex-wrap gap-2">
+            <CardHeader
+              title="Contract Actions"
+              hint="Only legal transitions permitted in this state."
+            />
+            <CardBody className="space-y-3">
               {job.status === 'open' && isClient ? (
-                <p className="text-sm text-muted">
-                  Open. Providers nearby can see it, and you can hire one from the providers page.
-                </p>
+                <div className="rounded-xl border border-line bg-sunken/30 p-3 text-sm text-muted">
+                  This job is open to verified providers nearby. You can hire a specific provider from the Providers page.
+                </div>
               ) : null}
+
+              {job.status === 'open' && !isClient && (
+                <Button
+                  loading={pendingAction === 'apply' && changeStatus.isPending}
+                  loadingLabel="Accepting..."
+                  disabled={changeStatus.isPending}
+                  onClick={() => handleStatusChange('assigned', 'apply')}
+                  className="w-full"
+                >
+                  <ShieldCheck size={15} aria-hidden="true" />
+                  Accept this job as provider
+                </Button>
+              )}
+
               {job.status === 'requested' && isProvider ? (
                 <Button
-                  loading={changeStatus.isPending}
-                  onClick={() => changeStatus.mutate({ status: 'assigned' })}
+                  loading={pendingAction === 'accept' && changeStatus.isPending}
+                  loadingLabel="Accepting job..."
+                  disabled={changeStatus.isPending}
+                  onClick={() => handleStatusChange('assigned', 'accept')}
+                  className="w-full"
                 >
+                  <ShieldCheck size={15} aria-hidden="true" />
                   Accept this job
                 </Button>
               ) : null}
+
               {job.status === 'assigned' && isProvider ? (
                 <Button
-                  loading={changeStatus.isPending}
-                  onClick={() => changeStatus.mutate({ status: 'in_progress' })}
+                  loading={pendingAction === 'start' && changeStatus.isPending}
+                  loadingLabel="Starting work..."
+                  disabled={changeStatus.isPending}
+                  onClick={() => handleStatusChange('in_progress', 'start')}
+                  className="w-full"
                 >
                   Start work
                 </Button>
               ) : null}
+
               {job.status === 'in_progress' && isClient ? (
                 <Button
-                  loading={changeStatus.isPending}
-                  onClick={() => changeStatus.mutate({ status: 'completed' })}
+                  loading={pendingAction === 'complete' && changeStatus.isPending}
+                  loadingLabel="Completing..."
+                  disabled={changeStatus.isPending}
+                  onClick={() => handleStatusChange('completed', 'complete')}
+                  className="w-full"
                 >
+                  <CheckCircle2 size={15} aria-hidden="true" />
                   Mark complete
                 </Button>
               ) : null}
+
               {['open', 'requested', 'assigned', 'in_progress'].includes(job.status) && (isClient || isProvider) ? (
                 <Button
                   intent="danger"
-                  loading={changeStatus.isPending}
-                  onClick={() => changeStatus.mutate({ status: 'cancelled' })}
+                  loading={pendingAction === 'cancel' && changeStatus.isPending}
+                  loadingLabel="Cancelling..."
+                  disabled={changeStatus.isPending}
+                  onClick={() => handleStatusChange('cancelled', 'cancel')}
+                  className="w-full"
                 >
                   Cancel job
                 </Button>
               ) : null}
+
+              {isTerminal && (
+                <p className="text-xs text-muted">
+                  This job has concluded with status &quot;{job.status}&quot;. No further actions may be taken.
+                </p>
+              )}
+
               {changeStatus.isError ? (
-                <p role="alert" className="text-sm text-ink">
-                  That change was not allowed. The room shows the job&apos;s real state: refresh and
-                  look again.
+                <p role="alert" className="text-xs text-ink bg-accent/20 border border-accent p-2 rounded-lg">
+                  That action is not permitted in the job&apos;s current state. Refresh the page to synchronize.
                 </p>
               ) : null}
             </CardBody>
           </Card>
 
+          {/* Payment Panel */}
           {isClient || isProvider ? (
             <PaymentPanel jobId={job.id} amount={job.price} currency={job.currency} />
           ) : null}
 
+          {/* Agent Activity Panel */}
           <Card>
             <CardHeader
-              title="Agent"
-              hint="Ask for something concrete. Every tool call is logged."
-              action={<Bot size={16} aria-hidden="true" />}
+              title="proxidAI Room Assistant"
+              hint="Ask for a summary or action. Every tool call is logged."
+              action={<Bot size={16} className="text-accent" aria-hidden="true" />}
             />
             <CardBody className="space-y-3">
               <form
@@ -243,12 +413,18 @@ export function JobRoomPage() {
                 }}
               >
                 <TextAreaField
-                  label="Command"
+                  label="Agent command"
                   value={command}
                   onChange={(event) => setCommand(event.target.value)}
                   placeholder="Summarise this job and tell me what happens next."
                 />
-                <Button type="submit" loading={runAgent.isPending} disabled={!command.trim()}>
+                <Button
+                  type="submit"
+                  loading={runAgent.isPending}
+                  loadingLabel="Consulting agent..."
+                  disabled={!command.trim() || runAgent.isPending}
+                >
+                  <Sparkles size={14} aria-hidden="true" />
                   Ask the agent
                 </Button>
               </form>
@@ -258,8 +434,7 @@ export function JobRoomPage() {
                   <p className="text-ink">{runAgent.data.reply}</p>
                   {runAgent.data.degraded ? (
                     <p className="mt-2 text-xs text-muted">
-                      The language model is not connected on this deployment, so this answer was
-                      assembled from what the account already shows.
+                      Language model not configured on this host. Fallback answer generated from job state.
                     </p>
                   ) : null}
                 </div>
@@ -271,7 +446,7 @@ export function JobRoomPage() {
                 <AgentActivity
                   steps={activity.data}
                   loading={activity.isLoading}
-                  emptyHint="No agent actions yet. Ask it to do something above."
+                  emptyHint="No agent actions yet in this job room. Ask it to do something above."
                 />
               )}
             </CardBody>
@@ -279,8 +454,7 @@ export function JobRoomPage() {
 
           {canPay ? (
             <p className="rounded-xl border border-dashed border-line p-3 text-xs text-muted">
-              The payment panel is above. It records a receipt and reports the rail as not
-              configured: nothing is charged, and no transaction hash exists to show.
+              The payment panel records an x402 receipt for settlement. The live chain rail is not configured in this build.
             </p>
           ) : null}
         </div>

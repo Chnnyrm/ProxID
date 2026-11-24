@@ -31,4 +31,14 @@ export const authService = {
 
   /** The signed-in person, used to restore a session on page load. */
   me: () => api.get<Me>('/users/me'),
+
+  /** Update the signed-in person's own profile. */
+  updateProfile: (data: {
+    display_name?: string
+    bio?: string
+    avatar_url?: string
+    neighbourhood?: string
+    latitude?: number
+    longitude?: number
+  }) => api.patch<Me>('/users/me', data),
 }

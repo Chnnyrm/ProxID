@@ -40,9 +40,15 @@ class Database:
             # "connection was closed in the middle of operation", which is exactly
             # what happened against Neon's pooled host. Serverless deployments must
             # use the pooled host, so the cache stays off.
+            # Only asyncpg's own parameters belong in connect_args. It does not accept
+            # prepared_statement_cache_size, which is a SQLAlchemy dialect argument:
+            # passing it through raises TypeError on every connection. That went
+            # unnoticed locally because the borrowed site-packages carried SQLAlchemy
+            # 2.0.51, which filters it, while the pinned 2.0.36 the deployment installs
+            # does not. Every database call failed in production and every call passed
+            # on the machine that wrote it.
             connect_args={
                 "statement_cache_size": 0,
-                "prepared_statement_cache_size": 0,
             },
         )
         self._session_factory = async_sessionmaker(
