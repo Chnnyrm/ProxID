@@ -1,47 +1,46 @@
 /**
  * Verified Providers Directory.
  *
- * Built according to ProxID's editorial print visual language:
- * - Sand (#F0E5DB), Mocha Green (#474329), and a single loud Watermelon Pink (#FC75B4) CTA.
- * - Condensed display headline (Bebas Neue) at large scale with tight leading.
- * - Strict nested radii: Card 16px, Inner 12px, Button 8px.
- * - Spacing strictly on scale: 4, 8, 12, 16, 24, 32, 48, 64.
- * - Concordium is the spine: verified human status governs discovery and map representations.
+ * Mobile-first minimalist cartoon visual language:
+ * - Sand (#F0E5DB), Mocha Green (#474329), and ink-on-sand controls.
+ * - Pink is NEVER a control; reserved strictly for graphic gestures.
+ * - Cartoon vector illustrations (Tradesperson, House) for empty states.
+ * - Mobile tabs (List / Map) at 390px, side-by-side split on desktop (>= 1024px).
+ * - Zero demo labels or disclaimers; seeded content looks indistinguishable from real data.
+ * - Concordium is the spine: verified human attestation on all providers.
  *
  * Completeness Inventory (11 interactive elements):
- * 1. Segmented View Switcher (Grid / Map Split / My Offerings)
- * 2. Sort Order Control (Nearest, Verified First, Price Low, Price High)
+ * 1. Segmented View Switcher (Spatial Split / Index Grid / My Listings + Mobile List/Map tabs)
+ * 2. Sort Order Control (Nearest First, Attested First, Budget Low/High)
  * 3. Geolocation & Pinpoint GPS Trigger with live coordinates
  * 4. Publish Listing / Offer Trade Modal Trigger & Form
  * 5. Search Bar Input with instant Clear affordance
  * 6. Pagination & Load More Control
- * 7. Interactive Provider Cards with Direct Hire / Request Action
- * 8. Distance Radius Filter Pills (Strict 8-point scale)
+ * 7. Interactive Provider Cards with Direct Hire Action (ink on sand, zero prose)
+ * 8. Distance Radius Filter Pills
  * 9. Content-shaped Loading Skeletons
- * 10. Contextual Empty States with Next Action
+ * 10. Contextual Empty States (Cartoon illustration + 4 words + button)
  * 11. Management & Request Modals (Hire Request + Publish Form)
  */
 
 import {
-  ArrowUpDown,
   Check,
-  Compass,
   Grid,
-  Map,
-  MapPin,
+  Map as MapIcon,
   Plus,
   RefreshCw,
   Search,
   ShieldCheck,
-  Sparkles,
-  UserCheck,
   Wrench,
   X,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 
-import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
+import {
+  HouseIllustration,
+  TradespersonIllustration,
+} from '@/components/illustrations/CartoonIllustrations'
 import { NeighborhoodMap, type MapPoint } from '@/components/map/NeighborhoodMap'
 import { ProviderCard } from '@/components/ProviderCard'
 import { Button } from '@/components/ui/button'
@@ -58,12 +57,14 @@ import { money } from '@/lib/format'
 import { RADIUS_CHOICES, useLocationStore } from '@/store/locationStore'
 import type { Provider, ServiceListing } from '@/types/api'
 
-type ViewMode = 'grid' | 'split' | 'mine'
+type ViewMode = 'split' | 'grid' | 'mine'
+type MobileTab = 'list' | 'map'
 type SortOption = 'nearest' | 'verified' | 'price_low' | 'price_high'
 
 export function ProvidersPage() {
   const { isSignedIn } = useAuth()
   const [viewMode, setViewMode] = useState<ViewMode>('split')
+  const [mobileTab, setMobileTab] = useState<MobileTab>('list')
   const [searchQuery, setSearchQuery] = useState('')
   const [sortOrder, setSortOrder] = useState<SortOption>('nearest')
   const [verifiedOnly, setVerifiedOnly] = useState(false)
@@ -88,7 +89,6 @@ export function ProvidersPage() {
   const coordinates = useLocationStore((state) => state.coordinates)
   const radiusKm = useLocationStore((state) => state.radiusKm)
   const setRadiusKm = useLocationStore((state) => state.setRadiusKm)
-  const source = useLocationStore((state) => state.source)
   const requestDeviceLocation = useLocationStore((state) => state.requestDeviceLocation)
 
   const categoriesQuery = useCategories()
@@ -100,7 +100,6 @@ export function ProvidersPage() {
   const isSearching = searchQuery.trim().length >= 2
   const activeQuery = isSearching ? textQuery : nearbyQuery
 
-  // Handle Geolocation Click
   const handlePinpointLocation = async () => {
     setIsLocating(true)
     try {
@@ -110,43 +109,45 @@ export function ProvidersPage() {
     }
   }
 
-  // Filter & Sort Logic
-  const rawList = activeQuery.data ?? []
+  // Filter & Sort Providers
   const processedProviders = useMemo(() => {
-    let list = [...rawList]
-    if (isSearching && verifiedOnly) {
+    let list: Provider[] = activeQuery.data ?? []
+
+    if (verifiedOnly) {
       list = list.filter((p) => p.concordium_verified)
     }
 
-    switch (sortOrder) {
-      case 'verified':
-        list.sort((a, b) => (b.concordium_verified ? 1 : 0) - (a.concordium_verified ? 1 : 0))
-        break
-      case 'price_low':
-        list.sort((a, b) => {
-          const pa = a.services[0]?.price ?? 999999
-          const pb = b.services[0]?.price ?? 999999
-          return pa - pb
-        })
-        break
-      case 'price_high':
-        list.sort((a, b) => {
-          const pa = a.services[0]?.price ?? 0
-          const pb = b.services[0]?.price ?? 0
-          return pb - pa
-        })
-        break
-      case 'nearest':
-      default:
-        list.sort((a, b) => (a.distance_km ?? 999) - (b.distance_km ?? 999))
-        break
+    if (radiusKm > 0 && !isSearching) {
+      list = list.filter((p) => p.distance_km === null || p.distance_km <= radiusKm)
     }
-    return list
-  }, [rawList, isSearching, verifiedOnly, sortOrder])
 
-  const visibleProviders = useMemo(() => {
-    return processedProviders.slice(0, visibleCount)
-  }, [processedProviders, visibleCount])
+    const sorted = [...list]
+    sorted.sort((a, b) => {
+      if (sortOrder === 'nearest') {
+        const distA = a.distance_km ?? 999999
+        const distB = b.distance_km ?? 999999
+        return distA - distB
+      }
+      if (sortOrder === 'verified') {
+        if (a.concordium_verified !== b.concordium_verified) {
+          return a.concordium_verified ? -1 : 1
+        }
+        return (a.distance_km ?? 999999) - (b.distance_km ?? 999999)
+      }
+      const priceA = a.services[0]?.price ?? 0
+      const priceB = b.services[0]?.price ?? 0
+      if (sortOrder === 'price_low') return priceA - priceB
+      if (sortOrder === 'price_high') return priceB - priceA
+      return 0
+    })
+
+    return sorted
+  }, [activeQuery.data, verifiedOnly, radiusKm, isSearching, sortOrder])
+
+  const visibleProviders = useMemo(
+    () => processedProviders.slice(0, visibleCount),
+    [processedProviders, visibleCount],
+  )
 
   // Map Points
   const mapPoints = useMemo<MapPoint[]>(
@@ -161,7 +162,6 @@ export function ProvidersPage() {
         price: provider.services[0]?.price ?? null,
         distanceKm: provider.distance_km,
         verified: provider.concordium_verified,
-        isDemo: provider.is_demo,
       })),
     [processedProviders, coordinates.latitude, coordinates.longitude],
   )
@@ -218,7 +218,7 @@ export function ProvidersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8 space-y-8">
+    <div className="mx-auto max-w-6xl px-4 py-6 lg:py-8 space-y-6">
       {/* Editorial Poster Header */}
       <section className="border-b border-line pb-6">
         <div className="flex flex-wrap items-center justify-between gap-2 text-muted font-mono text-[10px] uppercase tracking-wider mb-2">
@@ -226,23 +226,23 @@ export function ProvidersPage() {
           <span>SPATIAL PROXIMITY INDEX</span>
         </div>
 
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
-          <div className="max-w-2xl">
-            <h1 className="font-display text-5xl sm:text-7xl uppercase tracking-tight leading-none text-ink">
+        <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+          <div className="max-w-xl">
+            <h1 className="font-display text-4xl sm:text-6xl uppercase tracking-tight leading-none text-ink">
               Verified Providers
             </h1>
-            <p className="mt-3 text-sm text-muted leading-relaxed">
+            <p className="mt-2 text-xs sm:text-sm text-muted leading-relaxed">
               Cryptographically verified human tradespeople within local range. Zero speculative
               tokens: reputation is anchored on Concordium Zero-Knowledge proofs.
             </p>
           </div>
 
-          {/* Singular Loud Pink Action Element */}
+          {/* Primary Action Button: ink on sand, NEVER pink */}
           <div className="shrink-0">
             <button
               type="button"
               onClick={() => setIsPublishOpen(true)}
-              className="inline-flex h-12 items-center justify-center gap-2 rounded-lg border border-structural bg-accent px-6 text-sm font-bold text-accent-ink shadow-xs transition-transform duration-150 ease-house hover:brightness-105 active:translate-y-px"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-structural bg-ink px-5 text-sm font-bold text-page shadow-xs transition-opacity duration-150 hover:opacity-90 active:translate-y-px"
             >
               <Plus size={16} />
               Offer Your Trade
@@ -255,7 +255,7 @@ export function ProvidersPage() {
       <section className="space-y-4">
         {/* Top Control Bar: View Switcher, GPS Trigger, Search, and Verified Toggle */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* 1. Segmented View Switcher */}
+          {/* 1. Segmented View Switcher (Desktop and Mode Switcher) */}
           <div className="inline-flex rounded-xl border border-line bg-surface p-1 shadow-xs">
             <button
               type="button"
@@ -267,7 +267,7 @@ export function ProvidersPage() {
                   : 'text-muted hover:text-ink'
               }`}
             >
-              <Map size={14} />
+              <MapIcon size={14} />
               Spatial Split
             </button>
             <button
@@ -391,9 +391,6 @@ export function ProvidersPage() {
                 {choice === 0 ? 'Any' : choice < 1 ? `${choice * 1000} m` : `${choice} km`}
               </button>
             ))}
-            {source === 'demo' ? (
-              <span className="font-mono text-[10px] text-muted ml-1">(Lagos Demo)</span>
-            ) : null}
           </div>
         </div>
       </section>
@@ -412,25 +409,23 @@ export function ProvidersPage() {
           </div>
 
           {!isSignedIn ? (
-            <EmptyState
-              icon={<UserCheck size={20} />}
-              title="Sign in to view your listings"
-              description="Publishing trade listings requires an active authenticated account with an optional Concordium badge."
-              actionLabel="Go to sign in"
-              onAction={() => {
-                window.location.href = '/login'
-              }}
-            />
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-line bg-surface p-8 text-center space-y-4">
+              <TradespersonIllustration size={72} />
+              <h3 className="text-sm font-bold text-ink">Sign in to view your listings</h3>
+              <Button size="sm" onClick={() => (window.location.href = '/login')}>
+                Go to Sign In
+              </Button>
+            </div>
           ) : myListingsQuery.isLoading ? (
             <CardSkeletonList count={2} />
           ) : (myListingsQuery.data ?? []).length === 0 ? (
-            <EmptyState
-              icon={<Wrench size={20} />}
-              title="No services published yet"
-              description="Publish a listing with your rates and work radius so nearby clients can find and hire you directly."
-              actionLabel="Offer Your Trade"
-              onAction={() => setIsPublishOpen(true)}
-            />
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-line bg-surface p-8 text-center space-y-4">
+              <TradespersonIllustration size={72} />
+              <h3 className="text-sm font-bold text-ink">No services published yet</h3>
+              <Button size="sm" onClick={() => setIsPublishOpen(true)}>
+                Offer Your Trade
+              </Button>
+            </div>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {(myListingsQuery.data ?? []).map((listing: ServiceListing) => (
@@ -457,88 +452,123 @@ export function ProvidersPage() {
           )}
         </section>
       ) : viewMode === 'split' ? (
-        /* View 1: Spatial Split Map + Grid */
-        <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr] items-start">
-          {/* Sticky Editorial Neighborhood Map */}
-          <div className="min-w-0 lg:sticky lg:top-20 lg:self-start">
-            <NeighborhoodMap
-              center={coordinates}
-              radiusKm={radiusKm}
-              points={mapPoints}
-              loading={activeQuery.isLoading}
-              height={480}
-            />
+        /* View 1: Spatial Split (Mobile Tabs + Desktop Side-by-Side) */
+        <div className="space-y-4">
+          {/* Mobile-first segmented tab at 390px instead of stacked */}
+          <div className="lg:hidden flex items-center rounded-xl border border-line bg-surface p-1 shadow-xs">
+            <button
+              type="button"
+              onClick={() => setMobileTab('list')}
+              aria-pressed={mobileTab === 'list'}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition-colors ${
+                mobileTab === 'list'
+                  ? 'border border-structural bg-ink text-page shadow-xs'
+                  : 'text-muted hover:text-ink'
+              }`}
+            >
+              <Grid size={14} />
+              <span>Provider List ({processedProviders.length})</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMobileTab('map')}
+              aria-pressed={mobileTab === 'map'}
+              className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2 text-xs font-semibold transition-colors ${
+                mobileTab === 'map'
+                  ? 'border border-structural bg-ink text-page shadow-xs'
+                  : 'text-muted hover:text-ink'
+              }`}
+            >
+              <MapIcon size={14} />
+              <span>Map Pinpoint ({processedProviders.length})</span>
+            </button>
           </div>
 
-          {/* Providers List Column */}
-          <div className="min-w-0 space-y-4">
-            <div className="flex items-center justify-between text-xs font-mono text-muted pb-1">
-              <span>
-                SHOWING {visibleProviders.length} OF {processedProviders.length} PROVIDERS
-              </span>
-              <span>INDEXED RADIUS: {radiusKm > 0 ? `${radiusKm} KM` : 'GLOBAL'}</span>
+          {/* Unified Layout: Mobile tab toggle, Desktop side-by-side */}
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr] items-start">
+            {/* Map Column: mobileTab === 'map' on mobile, always visible on desktop */}
+            <div
+              className={`min-w-0 lg:sticky lg:top-20 lg:self-start ${
+                mobileTab === 'map' ? 'block' : 'hidden lg:block'
+              }`}
+            >
+              <NeighborhoodMap
+                center={coordinates}
+                radiusKm={radiusKm}
+                points={mapPoints}
+                loading={activeQuery.isLoading}
+                height={520}
+              />
             </div>
 
-            {activeQuery.isLoading ? (
-              <CardSkeletonList count={4} />
-            ) : activeQuery.isError ? (
-              <ErrorState
-                title="Failed to load nearby providers"
-                message="Unable to communicate with the Concordium provider index. Check connection and retry."
-                onRetry={() => void activeQuery.refetch()}
-              />
-            ) : processedProviders.length === 0 ? (
-              <EmptyState
-                icon={<Sparkles size={20} />}
-                title={
-                  isSearching
-                    ? `No providers found matching "${searchQuery}"`
-                    : verifiedOnly
-                      ? 'No Concordium-attested providers in this radius'
-                      : 'No providers within selected distance'
-                }
-                description={
-                  isSearching
-                    ? 'Try different trade keywords or clear the search query to see all nearby professionals.'
-                    : verifiedOnly
-                      ? 'Widen your distance radius or toggle "All Providers" to discover additional services.'
-                      : 'Widen the radius selector above or publish your own trade listing.'
-                }
-                actionLabel={isSearching ? 'Clear search' : radiusKm !== 0 ? 'Show all distances' : undefined}
-                onAction={
-                  isSearching
-                    ? () => setSearchQuery('')
-                    : radiusKm !== 0
-                      ? () => setRadiusKm(0)
-                      : undefined
-                }
-              />
-            ) : (
-              <div className="space-y-4">
-                <div className="grid gap-4 sm:grid-cols-1">
-                  {visibleProviders.map((provider) => (
-                    <ProviderCard
-                      key={provider.id}
-                      provider={provider}
-                      onRequest={handleDirectHire}
-                    />
-                  ))}
-                </div>
-
-                {/* 6. Pagination & Load More Control */}
-                {visibleCount < processedProviders.length && (
-                  <div className="pt-4 text-center">
-                    <button
-                      type="button"
-                      onClick={() => setVisibleCount((prev) => prev + 12)}
-                      className="rounded-lg border border-line bg-surface px-4 py-2 text-xs font-semibold text-ink hover:bg-sunken transition-colors shadow-xs"
-                    >
-                      Load More Providers ({processedProviders.length - visibleCount} remaining)
-                    </button>
-                  </div>
-                )}
+            {/* Providers List Column: mobileTab === 'list' on mobile, always visible on desktop */}
+            <div
+              className={`min-w-0 space-y-4 ${
+                mobileTab === 'list' ? 'block' : 'hidden lg:block'
+              }`}
+            >
+              <div className="flex items-center justify-between text-xs font-mono text-muted pb-1">
+                <span>
+                  SHOWING {visibleProviders.length} OF {processedProviders.length} PROVIDERS
+                </span>
+                <span>INDEXED RADIUS: {radiusKm > 0 ? `${radiusKm} KM` : 'GLOBAL'}</span>
               </div>
-            )}
+
+              {activeQuery.isLoading ? (
+                <CardSkeletonList count={4} />
+              ) : activeQuery.isError ? (
+                <ErrorState
+                  title="Failed to load nearby providers"
+                  message="Unable to communicate with the Concordium provider index. Check connection and retry."
+                  onRetry={() => void activeQuery.refetch()}
+                />
+              ) : processedProviders.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-2xl border border-line bg-surface p-8 text-center space-y-4">
+                  <HouseIllustration size={80} />
+                  <h3 className="text-base font-bold text-ink">
+                    {isSearching ? 'No trade matches found' : 'No providers in range'}
+                  </h3>
+                  <Button
+                    size="sm"
+                    onClick={
+                      isSearching
+                        ? () => setSearchQuery('')
+                        : () => {
+                            setRadiusKm(0)
+                            setVerifiedOnly(false)
+                          }
+                    }
+                  >
+                    {isSearching ? 'Clear search' : 'Widen search radius'}
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-1">
+                    {visibleProviders.map((provider) => (
+                      <ProviderCard
+                        key={provider.id}
+                        provider={provider}
+                        onRequest={handleDirectHire}
+                      />
+                    ))}
+                  </div>
+
+                  {/* 6. Pagination & Load More Control */}
+                  {visibleCount < processedProviders.length && (
+                    <div className="pt-4 text-center">
+                      <button
+                        type="button"
+                        onClick={() => setVisibleCount((prev) => prev + 12)}
+                        className="rounded-lg border border-line bg-surface px-4 py-2 text-xs font-semibold text-ink hover:bg-sunken transition-colors shadow-xs"
+                      >
+                        Load More Providers ({processedProviders.length - visibleCount} remaining)
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       ) : (
@@ -560,17 +590,20 @@ export function ProvidersPage() {
               onRetry={() => void activeQuery.refetch()}
             />
           ) : processedProviders.length === 0 ? (
-            <EmptyState
-              icon={<Sparkles size={20} />}
-              title="No providers found"
-              description="Adjust your search criteria or widen the distance radius."
-              actionLabel="Show all providers"
-              onAction={() => {
-                setSearchQuery('')
-                setRadiusKm(0)
-                setVerifiedOnly(false)
-              }}
-            />
+            <div className="flex flex-col items-center justify-center rounded-2xl border border-line bg-surface p-8 text-center space-y-4">
+              <HouseIllustration size={80} />
+              <h3 className="text-base font-bold text-ink">No providers found</h3>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setSearchQuery('')
+                  setRadiusKm(0)
+                  setVerifiedOnly(false)
+                }}
+              >
+                Reset search filters
+              </Button>
+            </div>
           ) : (
             <div className="space-y-6">
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -714,7 +747,7 @@ export function ProvidersPage() {
                 <button
                   type="submit"
                   disabled={createListingMutation.isPending}
-                  className="rounded-lg border border-structural bg-accent px-5 py-2 text-xs font-bold text-accent-ink hover:brightness-105 disabled:opacity-60 transition-transform active:translate-y-px"
+                  className="rounded-lg border border-structural bg-ink px-5 py-2 text-xs font-bold text-page hover:opacity-90 disabled:opacity-50 transition-opacity active:translate-y-px"
                 >
                   {createListingMutation.isPending ? 'Publishing...' : 'Publish Listing'}
                 </button>
@@ -792,7 +825,7 @@ export function ProvidersPage() {
                   <button
                     type="submit"
                     disabled={isSendingHire || !hireMessage.trim()}
-                    className="rounded-lg border border-structural bg-accent px-5 py-2 text-xs font-bold text-accent-ink hover:brightness-105 disabled:opacity-50 transition-transform active:translate-y-px"
+                    className="rounded-lg border border-structural bg-ink px-5 py-2 text-xs font-bold text-page hover:opacity-90 disabled:opacity-50 transition-opacity active:translate-y-px"
                   >
                     {isSendingHire ? 'Dispatching...' : 'Send Request'}
                   </button>

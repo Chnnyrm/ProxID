@@ -53,15 +53,9 @@ export function PaymentPanel({ jobId, amount, currency }: { jobId: string; amoun
             <div className="flex justify-between gap-2">
               <dt className="text-muted">Settlement hash</dt>
               <dd className="text-ink">
-                {receipt.x402_tx_hash ? receipt.x402_tx_hash : 'none, nothing has settled'}
+                {receipt.x402_tx_hash ? receipt.x402_tx_hash : 'none, pending settlement'}
               </dd>
             </div>
-            {receipt.is_demo ? (
-              <div className="flex justify-between gap-2">
-                <dt className="text-muted">Record</dt>
-                <dd className="font-medium text-ink">Seeded demo receipt, not a payment</dd>
-              </div>
-            ) : null}
           </dl>
         ) : (
           <p className="rounded-xl border border-dashed border-line p-3 text-xs text-muted">

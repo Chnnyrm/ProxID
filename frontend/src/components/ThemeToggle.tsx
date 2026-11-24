@@ -19,7 +19,7 @@ export function ThemeToggle({ className }: { className?: string }) {
       title={label}
       className={cn(
         'inline-flex h-9 w-9 items-center justify-center rounded-full border border-line bg-surface text-ink',
-        'transition-[transform,background-color] duration-200 ease-house hover:bg-accent-wash active:scale-95',
+        'transition-[transform,background-color] duration-200 ease-house hover:bg-sunken active:scale-95',
         className,
       )}
     >

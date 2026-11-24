@@ -100,7 +100,6 @@ export function JobsPage() {
           price: job.price,
           distanceKm: job.distance_km,
           verified: false,
-          isDemo: job.is_demo,
           href: `/jobs/${job.id}`,
         })),
     [processedJobs],

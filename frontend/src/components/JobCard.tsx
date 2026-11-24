@@ -8,7 +8,6 @@
 import { Clock, MapPin } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
-import { DemoBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
 import { distance, money, statusLabel, timeAgo } from '@/lib/format'
 import type { Job } from '@/types/api'
@@ -42,7 +41,6 @@ export function JobCard({ job }: { job: Job }) {
           <Clock size={12} aria-hidden="true" />
           {timeAgo(job.created_at)}
         </span>
-        <DemoBadge isDemo={job.is_demo} />
       </div>
     </article>
   )

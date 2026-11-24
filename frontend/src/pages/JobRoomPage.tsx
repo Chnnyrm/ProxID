@@ -25,7 +25,7 @@ import { AgentActivity } from '@/components/AgentActivity'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { PaymentPanel } from '@/components/PaymentPanel'
-import { DemoBadge, VerifiedBadge } from '@/components/VerifiedBadge'
+import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -139,7 +139,6 @@ export function JobRoomPage() {
             <h1 className="text-2xl font-semibold leading-tight tracking-tight text-ink">{job.title}</h1>
             <Badge tone="neutral">{statusLabel(job.status)}</Badge>
             {provider ? <VerifiedBadge verified={provider.concordium_verified} /> : null}
-            <DemoBadge isDemo={job.is_demo} />
           </div>
           <p className="mt-1 text-sm text-muted">
             {money(job.price, job.currency)} - posted by {client.display_name}

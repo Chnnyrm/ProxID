@@ -24,7 +24,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
-import { DemoBadge, VerifiedBadge } from '@/components/VerifiedBadge'
+import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -121,7 +121,6 @@ export function JobDetailPage() {
               {job.category_name ? (
                 <Badge tone="quiet">{job.category_name}</Badge>
               ) : null}
-              <DemoBadge isDemo={job.is_demo} />
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
               {job.title}
