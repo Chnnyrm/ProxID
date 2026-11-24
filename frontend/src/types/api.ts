@@ -69,6 +69,7 @@ export interface ProviderService {
   title: string
   price: number
   category_name: string | null
+  image_url?: string | null
 }
 
 export interface Provider extends User {

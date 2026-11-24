@@ -161,6 +161,7 @@ class UserService:
                             category_name=names.get(listing.category_id)
                             if listing.category_id
                             else None,
+                            image_url=listing.image_url,
                         )
                         for listing in listings
                     ],

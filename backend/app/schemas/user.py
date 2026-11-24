@@ -122,6 +122,7 @@ class ProviderServiceOut(OutputModel):
     title: str
     price: float
     category_name: str | None = None
+    image_url: str | None = None
 
 
 SessionOut.model_rebuild()

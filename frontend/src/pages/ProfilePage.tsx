@@ -26,6 +26,8 @@ import { Link } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
+import { HouseIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { SafeImage } from '@/components/SafeImage'
 import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -493,18 +495,30 @@ export function ProfilePage() {
               {(myJobs.data ?? []).map((job) => (
                 <div
                   key={job.id}
-                  className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+                  className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
                 >
-                  <div className="min-w-0 flex-1">
-                    <Link
-                      to={`/jobs/${job.id}/room`}
-                      className="font-medium text-ink hover:underline block truncate text-sm"
-                    >
-                      {job.title}
-                    </Link>
-                    <span className="text-xs text-muted">
-                      {money(job.price, job.currency)}
-                    </span>
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <div className="relative h-11 w-11 shrink-0 rounded-lg overflow-hidden bg-sunken border border-line">
+                      <SafeImage
+                        src={job.image_url}
+                        alt={job.title}
+                        fallback={
+                          <HouseIllustration className="h-6 w-6 opacity-75" size={24} />
+                        }
+                        skeletonClassName="h-11 w-11"
+                      />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <Link
+                        to={`/jobs/${job.id}/room`}
+                        className="font-medium text-ink hover:underline block truncate text-sm"
+                      >
+                        {job.title}
+                      </Link>
+                      <span className="text-xs text-muted">
+                        {money(job.price, job.currency)}
+                      </span>
+                    </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <Badge tone="quiet">{statusLabel(job.status)}</Badge>

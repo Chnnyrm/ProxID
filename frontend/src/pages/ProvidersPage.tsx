@@ -44,6 +44,7 @@ import {
 } from '@/components/illustrations/CartoonIllustrations'
 import { NeighborhoodMap, type MapPoint } from '@/components/map/NeighborhoodMap'
 import { ProviderCard } from '@/components/ProviderCard'
+import { SafeImage } from '@/components/SafeImage'
 import { Button } from '@/components/ui/button'
 import { CardSkeletonList } from '@/components/ui/skeleton'
 import { useAuth } from '@/hooks/useAuth'
@@ -430,20 +431,34 @@ export function ProvidersPage() {
               {(myListingsQuery.data ?? []).map((listing: ServiceListing) => (
                 <div
                   key={listing.id}
-                  className="rounded-2xl border border-line bg-surface p-4 sm:p-6 shadow-sm space-y-3"
+                  className="rounded-2xl border border-line bg-surface overflow-hidden shadow-sm flex flex-col justify-between"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold text-base text-ink">{listing.title}</h3>
-                    <span className="font-mono text-xs font-bold text-ink">
-                      {money(listing.price)}
-                    </span>
+                  <div className="relative aspect-video w-full bg-sunken overflow-hidden">
+                    <SafeImage
+                      src={listing.image_url}
+                      alt={listing.title}
+                      fallback={
+                        <TradespersonIllustration className="h-14 w-14 opacity-75" size={56} />
+                      }
+                      skeletonClassName="aspect-video w-full"
+                    />
                   </div>
-                  {listing.description ? (
-                    <p className="text-xs text-muted line-clamp-2">{listing.description}</p>
-                  ) : null}
-                  <div className="flex items-center justify-between text-xs font-mono text-muted pt-2 border-t border-line">
-                    <span>Coverage: {listing.radius_km} km</span>
-                    <span className="text-ink font-semibold">Active</span>
+                  <div className="p-4 sm:p-5 space-y-3 flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="font-semibold text-base text-ink">{listing.title}</h3>
+                        <span className="font-mono text-xs font-bold text-ink">
+                          {money(listing.price)}
+                        </span>
+                      </div>
+                      {listing.description ? (
+                        <p className="mt-1 text-xs text-muted line-clamp-2">{listing.description}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center justify-between text-xs font-mono text-muted pt-2 border-t border-line">
+                      <span>Coverage: {listing.radius_km} km</span>
+                      <span className="text-ink font-semibold">Active</span>
+                    </div>
                   </div>
                 </div>
               ))}

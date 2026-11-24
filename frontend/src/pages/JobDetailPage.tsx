@@ -24,6 +24,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
+import { HouseIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { SafeImage } from '@/components/SafeImage'
 import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -109,6 +111,22 @@ export function JobDetailPage() {
           <span>Back to Jobs</span>
         </Link>
       </div>
+
+      {/* Job Photo Banner */}
+      {job.image_url && (
+        <div className="mb-4 overflow-hidden rounded-2xl border border-line bg-surface shadow-xs">
+          <div className="relative aspect-[21/9] sm:aspect-video w-full max-h-[340px] overflow-hidden bg-sunken">
+            <SafeImage
+              src={job.image_url}
+              alt={job.title}
+              fallback={
+                <HouseIllustration className="h-20 w-20 opacity-80" size={80} />
+              }
+              skeletonClassName="aspect-[21/9] sm:aspect-video w-full max-h-[340px]"
+            />
+          </div>
+        </div>
+      )}
 
       {/* Main Job Title & Budget Header */}
       <div className="rounded-2xl border border-line bg-surface p-6 shadow-sm">
