@@ -32,6 +32,7 @@ interface AuthState {
     latitude?: number
     longitude?: number
   }) => Promise<boolean>
+  uploadAvatar: (file: File) => Promise<{ url: string; public_id: string } | null>
   logout: () => Promise<void>
   clearError: () => void
 }
@@ -113,6 +114,17 @@ export const useAuthStore = create<AuthState>((set) => ({
     } catch (error) {
       set({ error: messageOf(error) })
       return false
+    }
+  },
+
+  uploadAvatar: async (file: File) => {
+    set({ error: null })
+    try {
+      const res = await authService.uploadMedia(file, 'avatars')
+      return res
+    } catch (error) {
+      set({ error: messageOf(error) })
+      return null
     }
   },
 

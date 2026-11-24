@@ -13,7 +13,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Mic, Loader2, X, Send } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import {
   motion,
   AnimatePresence,
@@ -60,6 +60,7 @@ function TrailBlob({
 
 export default function VoiceAssistant() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { aiSettings, submitCommand, openPanel, navigateTarget, clearNavigateTarget } = useAgentStore()
 
   const [isOpen, setIsOpen] = useState(false)
@@ -243,7 +244,7 @@ export default function VoiceAssistant() {
     }
   }, [])
 
-  if (!aiSettings.voiceEnabled) return null
+  if (!aiSettings.voiceEnabled || location.pathname === '/agent') return null
 
   const handleMicToggle = () => {
     if (isListening) {
