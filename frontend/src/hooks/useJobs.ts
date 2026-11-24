@@ -19,6 +19,20 @@ export const jobKeys = {
   mine: ['jobs', 'mine'] as const,
   detail: (id: string) => ['jobs', 'detail', id] as const,
   room: (id: string) => ['jobs', 'room', id] as const,
+  search: (params: Record<string, unknown>) => ['jobs', 'search', params] as const,
+}
+
+/** Filtered job search. */
+export function useSearchJobs(params: {
+  q?: string
+  status?: string
+  categoryId?: string
+  sort?: string
+}) {
+  return useQuery({
+    queryKey: jobKeys.search(params),
+    queryFn: () => jobService.search(params),
+  })
 }
 
 /** The open-jobs list. */

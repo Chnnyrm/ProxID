@@ -17,6 +17,7 @@ export function useAuth() {
   const register = useAuthStore((state) => state.register)
   const google = useAuthStore((state) => state.google)
   const demoLogin = useAuthStore((state) => state.demoLogin)
+  const updateProfile = useAuthStore((state) => state.updateProfile)
   const logout = useAuthStore((state) => state.logout)
   const clearError = useAuthStore((state) => state.clearError)
 
@@ -33,6 +34,7 @@ export function useAuth() {
     register,
     google,
     demoLogin,
+    updateProfile,
     logout,
     clearError,
     /** A short label for the header, without leaking an email to a stranger. */

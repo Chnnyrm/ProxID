@@ -9,6 +9,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { DemoBanner } from '@/components/DemoBanner'
 import { Header } from '@/components/Header'
 import { AgentPage } from '@/pages/AgentPage'
+import { JobDetailPage } from '@/pages/JobDetailPage'
 import { JobRoomPage } from '@/pages/JobRoomPage'
 import { JobsPage } from '@/pages/JobsPage'
 import { LandingPage } from '@/pages/LandingPage'
@@ -37,7 +38,7 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/jobs" element={<JobsPage />} />
-          <Route path="/jobs/:jobId" element={<JobRoomPage />} />
+          <Route path="/jobs/:jobId" element={<JobDetailPage />} />
           <Route path="/jobs/:jobId/room" element={<JobRoomPage />} />
           <Route path="/providers" element={<ProvidersPage />} />
           <Route path="/agent" element={<AgentPage />} />
