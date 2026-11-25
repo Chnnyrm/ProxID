@@ -14,12 +14,44 @@ import type { Job } from '@/types/api'
 
 export const jobKeys = {
   browse: ['jobs', 'browse'] as const,
+  appliedIds: ['jobs', 'appliedIds'] as const,
   nearby: (coords: Coordinates, radiusKm: number) =>
     ['jobs', 'nearby', coords.latitude, coords.longitude, radiusKm] as const,
   mine: ['jobs', 'mine'] as const,
   detail: (id: string) => ['jobs', 'detail', id] as const,
   room: (id: string) => ['jobs', 'room', id] as const,
   search: (params: Record<string, unknown>) => ['jobs', 'search', params] as const,
+}
+
+/** The set of job IDs the current user has applied to. */
+export function useAppliedJobIds(enabled = true) {
+  return useQuery({
+    queryKey: jobKeys.appliedIds,
+    queryFn: () => jobService.appliedIds(),
+    enabled,
+    staleTime: 30_000,
+  })
+}
+
+/** Apply to a job. */
+export function useApplyJob() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      jobId,
+      message,
+      proposedPrice,
+    }: {
+      jobId: string
+      message?: string
+      proposedPrice?: number
+    }) => jobService.apply(jobId, message, proposedPrice),
+    onSuccess: (_, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ['jobs'] })
+      void queryClient.invalidateQueries({ queryKey: jobKeys.detail(vars.jobId) })
+      void queryClient.invalidateQueries({ queryKey: jobKeys.appliedIds })
+    },
+  })
 }
 
 /** Filtered job search. */

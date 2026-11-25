@@ -7,6 +7,7 @@ Alembic's autogenerate and the test fixtures need.
 from ..core.database import Base
 from .agent_conversation import AgentConversation, AgentTurn
 from .agent_log import AgentToolLog
+from .application import APPLICATION_STATUSES, Application
 from .audit_event import AUDIT_OUTCOMES, AuditEvent
 from .category import Category
 from .job import JOB_STATUSES, TERMINAL_JOB_STATUSES, Job
@@ -23,6 +24,8 @@ __all__ = [
     "AgentConversation",
     "AgentTurn",
     "AgentToolLog",
+    "Application",
+    "APPLICATION_STATUSES",
     "AUDIT_OUTCOMES",
     "AuditEvent",
     "Category",

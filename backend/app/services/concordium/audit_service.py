@@ -67,6 +67,7 @@ AUDIT_ACTIONS = (
     "request_verification",
     "approve_verification",
     "register_agent",
+    "apply_job",
 )
 
 #: Detail keys that may be stored as-is. Everything else is reduced to a hash.
@@ -74,6 +75,7 @@ AUDIT_ACTIONS = (
 PII_SAFE_FIELDS = frozenset(
     {
         "amount",
+        "application_id",
         "author_kind",
         "currency",
         "degraded",

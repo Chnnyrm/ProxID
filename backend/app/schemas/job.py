@@ -71,7 +71,16 @@ class JobOut(OutputModel):
     image_url: str | None = None
     distance_km: float | None = None
     client_display_name: str | None = None
+    client_avatar_url: str | None = None
+    client_username: str | None = None
+    client_concordium_verified: bool = False
+    client_neighbourhood: str | None = None
     provider_display_name: str | None = None
+    provider_avatar_url: str | None = None
+    provider_username: str | None = None
+    provider_concordium_verified: bool = False
+    applied: bool = False
+    client_other_jobs: list["JobOut"] = Field(default_factory=list)
     x402_tx_hash: str | None = None
     is_demo: bool = False
     created_at: datetime
@@ -88,3 +97,6 @@ class JobRoomOut(OutputModel):
     #: Present when a payment record exists for this job. Its status says whether
     #: anything actually moved.
     payment_status: str | None = None
+
+
+JobOut.model_rebuild()

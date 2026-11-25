@@ -32,6 +32,7 @@ export type VerificationStatus =
 export interface User {
   id: string
   display_name: string
+  username?: string | null
   role: Role | string
   avatar_url: string | null
   bio: string | null
@@ -39,6 +40,37 @@ export interface User {
   concordium_verified: boolean
   cis8004_agent_id: string | null
   is_demo: boolean
+  created_at: string
+}
+
+export interface PublicProfile {
+  id: string
+  display_name: string
+  username: string
+  avatar_url: string | null
+  bio: string | null
+  neighbourhood: string | null
+  concordium_verified: boolean
+  completed_jobs: number
+  vouches_count: number
+  average_rating: number | null
+  member_since: string
+  services: Array<{
+    id: string
+    title: string
+    price: number
+    category_name: string | null
+    image_url: string | null
+  }>
+}
+
+export interface Application {
+  id: string
+  job_id: string
+  applicant_id: string
+  message: string | null
+  proposed_price: number | null
+  status: string
   created_at: string
 }
 
@@ -99,7 +131,12 @@ export interface ServiceListing {
   distance_km: number | null
   provider_display_name: string | null
   provider_avatar_url: string | null
+  provider_username?: string | null
   provider_concordium_verified: boolean
+  provider_completed_jobs?: number
+  provider_vouches_count?: number
+  provider_average_rating?: number | null
+  provider_other_listings?: ServiceListing[]
   is_demo: boolean
   created_at: string
 }
@@ -123,7 +160,16 @@ export interface Job {
   image_url: string | null
   distance_km: number | null
   client_display_name: string | null
+  client_avatar_url?: string | null
+  client_username?: string | null
+  client_concordium_verified?: boolean
+  client_neighbourhood?: string | null
   provider_display_name: string | null
+  provider_avatar_url?: string | null
+  provider_username?: string | null
+  provider_concordium_verified?: boolean
+  applied?: boolean
+  client_other_jobs?: Job[]
   x402_tx_hash: string | null
   is_demo: boolean
   created_at: string

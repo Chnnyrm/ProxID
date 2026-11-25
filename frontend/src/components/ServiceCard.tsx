@@ -3,20 +3,24 @@
  *
  * Requirements:
  * - The unit of the list is a service listing, not a person.
- * - Listing photo as a 16:9 banner across the card top.
- * - Provider's avatar as a 40px circle overlapping its bottom-left corner with a hairline ring.
- * - Skeleton shaped like the image while loading, CartoonIllustrations placeholder if null or error.
+ * - The whole card is a clickable link to /services/:serviceId, with visible chevron and hover lift.
+ * - Listing photo as a 16:9 banner across the card top (opens lightbox on click).
+ * - Provider's avatar as a 40px circle overlapping bottom-left (opens lightbox on click).
+ * - Provider name links to /u/:username.
+ * - Skeleton shaped like image while loading, CartoonIllustrations placeholder if null/error.
  * - Verified providers get official Concordium mark from /brands/concordium.svg.
  * - Flat palette tokens, nested radii: card 16px (rounded-2xl), button 8px (rounded-lg).
  * - Primary action: ink on sand, NEVER pink.
  * - Pure ASCII.
  */
 
-import { useState } from 'react'
+import { ChevronRight } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { TradespersonIllustration } from '@/components/illustrations/CartoonIllustrations'
 import { SafeImage } from '@/components/SafeImage'
 import { distance as formatDistance, money } from '@/lib/format'
+import { useLightboxStore } from '@/store/lightboxStore'
 import type { ServiceListing } from '@/types/api'
 
 export function ServiceCard({
@@ -26,24 +30,30 @@ export function ServiceCard({
   service: ServiceListing
   onBook?: (service: ServiceListing) => void
 }) {
-  const [isBooking, setIsBooking] = useState(false)
-
-  const handleBook = () => {
-    setIsBooking(true)
-    setTimeout(() => {
-      setIsBooking(false)
-      onBook?.(service)
-    }, 200)
-  }
-
+  const navigate = useNavigate()
+  const openLightbox = useLightboxStore((state) => state.openLightbox)
   const initials = (service.provider_display_name || 'PR').slice(0, 2).toUpperCase()
   const displayPrice = money(service.price, service.currency)
 
   return (
-    <article className="rounded-2xl border border-line bg-surface overflow-hidden shadow-xs flex flex-col justify-between transition-all duration-200 hover:border-structural">
+    <Link
+      to={`/services/${service.id}`}
+      data-testid="service-card"
+      className="group rounded-2xl border border-line bg-surface overflow-hidden shadow-xs flex flex-col justify-between transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-structural cursor-pointer text-left"
+    >
       {/* 16:9 Listing Photo Banner */}
       <div className="relative">
-        <div className="relative aspect-video w-full bg-sunken overflow-hidden">
+        <div
+          className="relative aspect-video w-full bg-sunken overflow-hidden"
+          onClick={(e) => {
+            if (service.image_url) {
+              e.preventDefault()
+              e.stopPropagation()
+              openLightbox(service.image_url, service.title)
+            }
+          }}
+          title="Click to view full photo and download"
+        >
           <SafeImage
             src={service.image_url}
             alt={service.title}
@@ -55,8 +65,18 @@ export function ServiceCard({
         </div>
 
         {/* 40px provider avatar overlapping bottom-left corner with hairline ring */}
-        <div className="absolute -bottom-5 left-4">
-          <div className="relative h-10 w-10 shrink-0 rounded-full border-2 border-surface bg-page flex items-center justify-center overflow-hidden shadow-xs ring-1 ring-line">
+        <div className="absolute -bottom-5 left-4 z-10">
+          <div
+            className="relative h-10 w-10 shrink-0 rounded-full border-2 border-surface bg-page flex items-center justify-center overflow-hidden shadow-xs ring-1 ring-line cursor-pointer hover:scale-105 transition-transform"
+            onClick={(e) => {
+              if (service.provider_avatar_url) {
+                e.preventDefault()
+                e.stopPropagation()
+                openLightbox(service.provider_avatar_url, service.provider_display_name || 'Provider Avatar')
+              }
+            }}
+            title="Click to view avatar and download"
+          >
             <SafeImage
               src={service.provider_avatar_url}
               alt={service.provider_display_name || ''}
@@ -95,16 +115,32 @@ export function ServiceCard({
             ) : null}
           </div>
 
-          <h3 className="mt-1.5 text-sm font-bold text-ink leading-tight line-clamp-2">
+          <h3 className="mt-1.5 text-sm font-bold text-ink leading-tight line-clamp-2 group-hover:underline">
             {service.title}
           </h3>
 
-          <p className="mt-1 text-xs text-muted truncate">
-            by {service.provider_display_name || 'Verified Provider'}
-          </p>
+          <div className="mt-1 text-xs text-muted truncate">
+            <span>by </span>
+            {service.provider_username ? (
+              <span
+                onClick={(e) => {
+                  e.preventDefault()
+                  e.stopPropagation()
+                  navigate(`/u/${service.provider_username}`)
+                }}
+                className="text-ink font-semibold hover:underline"
+              >
+                {service.provider_display_name || `@${service.provider_username}`}
+              </span>
+            ) : (
+              <span className="text-ink font-medium">
+                {service.provider_display_name || 'Verified Provider'}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Price + Action Row */}
+        {/* Price + Action Row with Chevron */}
         <div className="flex items-center justify-between gap-3 border-t border-line pt-3 mt-1">
           <div>
             <span className="block font-mono text-[9px] uppercase text-muted tracking-wider">
@@ -113,16 +149,12 @@ export function ServiceCard({
             <span className="font-bold text-sm text-ink">{displayPrice}</span>
           </div>
 
-          <button
-            type="button"
-            disabled={isBooking}
-            onClick={handleBook}
-            className="rounded-lg border border-structural bg-ink px-4 py-2 text-xs font-bold text-page transition-all duration-150 hover:opacity-90 active:translate-y-px disabled:opacity-50 shadow-xs"
-          >
-            {isBooking ? 'Connecting...' : 'Book Service'}
-          </button>
+          <div className="inline-flex items-center gap-1 text-xs font-mono font-bold text-ink group-hover:translate-x-1 transition-transform">
+            <span>View Service</span>
+            <ChevronRight size={15} />
+          </div>
         </div>
       </div>
-    </article>
+    </Link>
   )
 }

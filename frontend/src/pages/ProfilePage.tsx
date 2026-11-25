@@ -38,6 +38,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useMyJobs } from '@/hooks/useJobs'
 import { useApproveVerification, useMyVerification, useRequestVerification } from '@/hooks/useVerification'
 import { money, statusLabel, timeAgo } from '@/lib/format'
+import { useLightboxStore } from '@/store/lightboxStore'
 
 export function ProfilePage() {
   const { user, isSignedIn, isLoading, logout, updateProfile, uploadAvatar } = useAuth()
@@ -45,6 +46,7 @@ export function ProfilePage() {
   const request = useRequestVerification()
   const approve = useApproveVerification()
   const myJobs = useMyJobs(isSignedIn)
+  const openLightbox = useLightboxStore((state) => state.openLightbox)
 
   const [purpose, setPurpose] = useState<'personhood' | 'age_over_18'>('personhood')
   const [isEditing, setIsEditing] = useState(false)
@@ -56,6 +58,7 @@ export function ProfilePage() {
 
   // Edit form state
   const [editName, setEditName] = useState('')
+  const [editUsername, setEditUsername] = useState('')
   const [editBio, setEditBio] = useState('')
   const [editNeighbourhood, setEditNeighbourhood] = useState('')
   const [editAvatarUrl, setEditAvatarUrl] = useState('')
@@ -64,6 +67,7 @@ export function ProfilePage() {
   const startEdit = () => {
     if (!user) return
     setEditName(user.display_name || '')
+    setEditUsername(user.username || '')
     setEditBio(user.bio || '')
     setEditNeighbourhood(user.neighbourhood || '')
     setEditAvatarUrl(user.avatar_url || '')
@@ -103,18 +107,24 @@ export function ProfilePage() {
       setSaveError('Display name is required.')
       return
     }
+    const cleanUsername = editUsername.trim().toLowerCase()
+    if (cleanUsername && !/^[a-z0-9_-]{3,30}$/.test(cleanUsername)) {
+      setSaveError('Username must be 3-30 characters using only lowercase letters, numbers, hyphens, and underscores.')
+      return
+    }
     setIsSaving(true)
     setSaveError(null)
     try {
       await updateProfile({
         display_name: editName.trim(),
+        username: cleanUsername || undefined,
         bio: editBio.trim() || null,
         neighbourhood: editNeighbourhood.trim() || null,
         avatar_url: editAvatarUrl.trim() || null,
       })
       setIsEditing(false)
     } catch {
-      setSaveError('Could not save profile changes. Please try again.')
+      setSaveError('Could not save profile changes. Username may already be taken.')
     } finally {
       setIsSaving(false)
     }
@@ -164,12 +174,16 @@ export function ProfilePage() {
           {!isEditing ? (
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-start sm:items-center gap-4">
-                <div className="relative shrink-0">
+                <div
+                  className="relative shrink-0 cursor-pointer group"
+                  onClick={() => openLightbox(user.avatar_url, `${user.display_name} Profile Photo`)}
+                  title="Click to view full photo and download"
+                >
                   {user.avatar_url ? (
                     <img
                       src={user.avatar_url}
                       alt={user.display_name}
-                      className="h-16 w-16 rounded-full border border-line object-cover shadow-sm"
+                      className="h-16 w-16 rounded-full border border-line object-cover shadow-sm group-hover:ring-2 group-hover:ring-accent transition-all"
                     />
                   ) : (
                     <div className="flex h-16 w-16 items-center justify-center rounded-full border border-line bg-sunken text-xl font-bold text-ink">
@@ -191,6 +205,18 @@ export function ProfilePage() {
                     <h1 className="text-xl font-bold tracking-tight text-ink truncate">{user.display_name}</h1>
                     <VerifiedBadge verified={user.concordium_verified} />
                   </div>
+                  {user.username && (
+                    <div className="mt-0.5 flex items-center gap-2">
+                      <Link
+                        to={`/u/${user.username}`}
+                        className="text-xs font-mono font-semibold text-accent hover:underline flex items-center gap-1"
+                        title="View your public portfolio"
+                      >
+                        <span>@{user.username}</span>
+                        <ExternalLink size={11} />
+                      </Link>
+                    </div>
+                  )}
                   <p className="mt-0.5 text-xs text-muted truncate">{user.email}</p>
                   <p className="mt-1 flex items-center gap-1 text-xs text-muted">
                     <MapPin size={12} className="shrink-0" />
@@ -321,6 +347,14 @@ export function ProfilePage() {
                 onChange={(e) => setEditName(e.target.value)}
                 placeholder="Ada Lovelace"
                 required
+              />
+
+              <TextField
+                label="Username (unique portfolio handle)"
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, ''))}
+                placeholder="e.g. adanwosu"
+                hint="Used for your shareable public portfolio link at /u/username."
               />
 
               <TextField
