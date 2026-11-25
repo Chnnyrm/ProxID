@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....core.config import Settings
@@ -44,13 +44,23 @@ async def list_notifications(
     ]
 
 
-@router.patch("/{notification_id}/read", status_code=status.HTTP_204_NO_CONTENT)
+@router.patch(
+    "/{notification_id}/read",
+    status_code=status.HTTP_204_NO_CONTENT,
+    response_class=Response,
+)
 async def mark_read(
     notification_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: CurrentUser = Depends(get_current_user),
-) -> None:
-    """Mark a notification as read."""
+) -> Response:
+    """Mark a notification as read.
+
+    Returns an empty 204. Annotating this ``-> None`` makes FastAPI build a JSON
+    response model for it, then assert at import time that a 204 must not carry a
+    body, which aborts the whole application on startup with
+    FUNCTION_INVOCATION_FAILED. An explicit empty Response avoids the body.
+    """
     success = await notification_service.mark_notification_read(
         db, notification_id, current_user.id
     )
@@ -59,6 +69,7 @@ async def mark_read(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Notification not found",
         )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/test", status_code=status.HTTP_201_CREATED)
