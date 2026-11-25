@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....core.container import Container
 from ....core.errors import NotConfiguredError
-from ....schemas.agent import AgentRunOut, AgentRunRequest, AgentStepOut
+from ....schemas.agent import (
+    AgentConversationOut,
+    AgentRunOut,
+    AgentRunRequest,
+    AgentStepOut,
+)
 from ...deps import CurrentUser, get_container, get_current_user, get_db
 
 router = APIRouter()
@@ -40,6 +45,17 @@ async def run(
         detail={"tools": outcome.used_tools, "degraded": outcome.degraded},
     )
     return to_agent_run_out(outcome)
+
+
+@router.get("/conversation", response_model=AgentConversationOut)
+async def conversation(
+    db: AsyncSession = Depends(get_db),
+    current_user: CurrentUser = Depends(get_current_user),
+) -> AgentConversationOut:
+    """Retrieve the current user's conversation thread with historical turns."""
+    from ....services.agent_service import get_user_conversation
+
+    return await get_user_conversation(db, current_user)
 
 
 @router.get("/tools")

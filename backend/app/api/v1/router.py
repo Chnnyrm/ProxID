@@ -12,7 +12,9 @@ from .endpoints import (
     jobs,
     location,
     messages,
+    notifications,
     payments,
+    push,
     services,
     upload,
     users,
@@ -31,4 +33,6 @@ api_router.include_router(agent.router, prefix="/agent", tags=["agent"])
 api_router.include_router(payments.router, prefix="/payments", tags=["payments"])
 api_router.include_router(location.router, prefix="/location", tags=["location"])
 api_router.include_router(verification.router, prefix="/verification", tags=["verification"])
+api_router.include_router(push.router, prefix="/push", tags=["push"])
+api_router.include_router(notifications.router, prefix="/notifications", tags=["notifications"])
 api_router.include_router(health.router, prefix="/health", tags=["health"])

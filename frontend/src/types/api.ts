@@ -158,11 +158,72 @@ export interface AgentStep {
   created_at: string | null
 }
 
+export interface AgentAction {
+  id: string
+  label: string
+  kind: string
+  target?: string | null
+  payload?: Record<string, any> | null
+}
+
 export interface AgentRun {
   reply: string
   steps: AgentStep[]
   used_tools: string[]
   degraded: boolean
+  actions?: AgentAction[]
+}
+
+export interface AgentTurn {
+  id: string
+  conversation_id: string
+  role: string
+  content: string
+  steps?: AgentStep[] | null
+  used_tools?: string[] | null
+  actions?: AgentAction[] | null
+  degraded?: boolean
+  created_at: string
+}
+
+export interface AgentConversation {
+  id: string
+  title: string
+  turns: AgentTurn[]
+  created_at: string
+}
+
+export interface PushSubscriptionKeys {
+  p256dh: string
+  auth: string
+}
+
+export interface PushSubscriptionData {
+  endpoint: string
+  keys: PushSubscriptionKeys
+  user_agent?: string | null
+}
+
+export interface PushStatus {
+  subscribed: boolean
+  count: number
+}
+
+export interface PushPublicKey {
+  public_key: string
+}
+
+export interface NotificationItem {
+  id: string
+  title: string
+  message: string
+  link?: string | null
+  type: string
+  tag?: string | null
+  actions?: Array<{ action: string; title: string }> | null
+  is_read: boolean
+  push_sent: boolean
+  created_at: string
 }
 
 export interface AgentTools {

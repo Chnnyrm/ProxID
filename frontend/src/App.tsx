@@ -10,6 +10,7 @@ import { Header } from '@/components/Header'
 import { Navigation } from '@/components/Navigation'
 import OnboardingOverlay from '@/components/OnboardingOverlay'
 import VoiceAssistant from '@/components/VoiceAssistant'
+import { registerServiceWorker, syncPushSubscription } from '@/lib/push'
 import { AgentPage } from '@/pages/AgentPage'
 import { JobDetailPage } from '@/pages/JobDetailPage'
 import { JobRoomPage } from '@/pages/JobRoomPage'
@@ -24,12 +25,23 @@ import { useAuthStore } from '@/store/authStore'
 
 export function App() {
   const bootstrap = useAuthStore((state) => state.bootstrap)
+  const session = useAuthStore((state) => state.session)
   const location = useLocation()
   const isLanding = location.pathname === '/'
 
   useEffect(() => {
     void bootstrap()
   }, [bootstrap])
+
+  useEffect(() => {
+    void registerServiceWorker()
+  }, [])
+
+  useEffect(() => {
+    if (session) {
+      void syncPushSubscription()
+    }
+  }, [session])
 
   return (
     <div className="flex min-h-screen flex-col bg-page text-ink">

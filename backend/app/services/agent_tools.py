@@ -98,31 +98,83 @@ def _job_card(job) -> dict[str, Any]:
 
 # -- Handlers ----------------------------------------------------------------
 
+NEIGHBOURHOOD_COORDINATES: dict[str, tuple[float, float]] = {
+    "yaba": (6.5121, 3.3739),
+    "surulere": (6.4975, 3.3592),
+    "ikeja": (6.5954, 3.3364),
+    "lekki": (6.4698, 3.5852),
+    "victoria island": (6.4281, 3.4219),
+    "vi": (6.4281, 3.4219),
+    "ikoyi": (6.4549, 3.4356),
+    "lagos island": (6.4549, 3.4046),
+    "maryland": (6.5744, 3.3664),
+    "gbagada": (6.5562, 3.3884),
+}
+
+
+def resolve_coordinates(context: ToolContext, args: dict[str, Any]) -> tuple[float | None, float | None]:
+    """Resolve coordinates following the strict priority order:
+    1. User's stored position first (context.user.latitude, context.user.longitude)
+    2. Explicit request args (args.get('latitude'), args.get('longitude'))
+    3. User's saved neighbourhood (context.user.neighbourhood)
+    """
+    if context.user.latitude is not None and context.user.longitude is not None:
+        return float(context.user.latitude), float(context.user.longitude)
+
+    arg_lat = args.get("latitude")
+    arg_lon = args.get("longitude")
+    if arg_lat is not None and arg_lon is not None:
+        try:
+            return float(arg_lat), float(arg_lon)
+        except (ValueError, TypeError):
+            pass
+
+    if context.user.neighbourhood:
+        n_lower = context.user.neighbourhood.lower().strip()
+        for name, coords in NEIGHBOURHOOD_COORDINATES.items():
+            if name in n_lower:
+                return coords
+        return (6.5095, 3.3711)
+
+    return None, None
+
 
 async def _tool_search_providers(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
-    """Find providers a client could hire, near the client when a position is known."""
+    """Find providers a client could hire, prioritizing user's stored position."""
     query = str(args.get("query") or "").strip()
-    latitude = args.get("latitude")
-    longitude = args.get("longitude")
     radius_km = float(args.get("radius_km") or 10.0)
     verified_only = bool(args.get("verified_only") or False)
 
-    if latitude is not None and longitude is not None:
+    lat, lon = resolve_coordinates(context, args)
+
+    if lat is not None and lon is not None:
         results = await context.listings.list_nearby(
             context.db,
-            latitude=float(latitude),
-            longitude=float(longitude),
+            latitude=lat,
+            longitude=lon,
             radius_km=radius_km,
             category_id=None,
             verified_only=verified_only,
             limit=MAX_RESULTS,
             offset=0,
         )
+        if query:
+            q_lower = query.lower()
+            filtered = [
+                item for item in results
+                if q_lower in item.title.lower()
+                or (item.description and q_lower in item.description.lower())
+                or (item.category_name and q_lower in item.category_name.lower())
+            ]
+            if filtered:
+                results = filtered
+            elif not results:
+                results = await context.listings.search(context.db, query, limit=MAX_RESULTS, offset=0)
     elif query:
         results = await context.listings.search(context.db, query, limit=MAX_RESULTS, offset=0)
     else:
         return _error(
-            "Provide a query, or the client's latitude and longitude, so I know what to look for."
+            "I have no saved location for your account. Which neighbourhood or area are you in?"
         )
 
     cards = [_service_card(listing) for listing in results[:MAX_RESULTS]]
@@ -130,11 +182,42 @@ async def _tool_search_providers(context: ToolContext, args: dict[str, Any]) -> 
         "ok": True,
         "count": len(cards),
         "results": cards,
+        "coordinates_used": {"latitude": lat, "longitude": lon} if lat is not None else None,
         "note": (
             "Use post_job to hire one of these providers, or accept_job when a provider replies."
             if cards
             else "No matching providers found. Try a wider radius or a different word."
         ),
+    }
+
+
+async def _tool_set_my_location(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    """Store or update the user's location coordinates and neighbourhood."""
+    lat = args.get("latitude")
+    lon = args.get("longitude")
+    neighbourhood = args.get("neighbourhood")
+
+    if lat is not None and lon is not None:
+        context.user.latitude = float(lat)
+        context.user.longitude = float(lon)
+    if neighbourhood:
+        context.user.neighbourhood = str(neighbourhood).strip()
+        if context.user.latitude is None or context.user.longitude is None:
+            n_lower = context.user.neighbourhood.lower()
+            for name, coords in NEIGHBOURHOOD_COORDINATES.items():
+                if name in n_lower:
+                    context.user.latitude, context.user.longitude = coords
+                    break
+            if context.user.latitude is None:
+                context.user.latitude, context.user.longitude = (6.5095, 3.3711)
+
+    await context.db.flush()
+    return {
+        "ok": True,
+        "message": f"Saved your location as {context.user.neighbourhood or 'active coordinates'}.",
+        "latitude": context.user.latitude,
+        "longitude": context.user.longitude,
+        "neighbourhood": context.user.neighbourhood,
     }
 
 
@@ -191,12 +274,14 @@ async def _tool_post_job(context: ToolContext, args: dict[str, Any]) -> dict[str
     if price is None or float(price) <= 0:
         return _error("A job needs a budget above zero.")
 
+    lat, lon = resolve_coordinates(context, args)
+
     payload = JobCreate(
         title=title,
         description=description,
         price=float(price),
-        latitude=args.get("latitude"),
-        longitude=args.get("longitude"),
+        latitude=lat,
+        longitude=lon,
     )
     job = await context.jobs.post_job(context.db, context.user, payload)
     return {
@@ -517,6 +602,20 @@ _TOOL_TABLE: dict[str, dict[str, Any]] = {
         "handler": _tool_my_jobs,
         "read_only": True,
     },
+    "set_my_location": {
+        "description": "Save or update the user's location coordinates or neighbourhood name.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "latitude": {"type": "number", "description": "GPS latitude coordinate."},
+                "longitude": {"type": "number", "description": "GPS longitude coordinate."},
+                "neighbourhood": {"type": "string", "description": "Area or neighbourhood name."},
+            },
+            "required": [],
+        },
+        "handler": _tool_set_my_location,
+        "read_only": False,
+    },
 }
 
 
@@ -558,6 +657,8 @@ def summarise_step(name: str, result: dict[str, Any]) -> str:
     if name == "accept_job":
         job = result.get("job") or {}
         return f"accepted \"{job.get('title')}\""
+    if name == "set_my_location":
+        return f"saved location: {result.get('neighbourhood') or 'coordinates'}"
     if name == "send_message":
         return "sent a message to the job room"
     if name == "initiate_x402_payment":

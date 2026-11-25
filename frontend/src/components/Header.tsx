@@ -10,6 +10,7 @@ import { Link } from 'react-router-dom'
 
 import { AuthDialog } from '@/components/AuthDialog'
 import { Logo } from '@/components/Logo'
+import { NotificationBell } from '@/components/NotificationBell'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
@@ -50,6 +51,7 @@ export function Header() {
               <span className="skeleton h-8 w-24 rounded-lg" aria-hidden="true" />
             ) : isSignedIn ? (
               <div className="flex items-center gap-2">
+                <NotificationBell />
                 <span className="max-w-[10rem] truncate text-xs font-semibold text-ink">
                   {displayName}
                 </span>
