@@ -12,10 +12,15 @@ cd "$(dirname "$0")"
 ROOT_REQ="$(cd .. && pwd)/requirements.txt"
 VENV="${TMPDIR:-/tmp}/proxid-deployable"
 
-if [ ! -x "$VENV/bin/python" ]; then
+# Rebuild whenever the requirements change. Reusing a stale environment is how this
+# check first passed while a dependency was missing, which makes it worthless.
+STAMP="$VENV/.requirements-stamp"
+if [ ! -x "$VENV/bin/python" ] || [ ! -f "$STAMP" ] || ! cmp -s "$ROOT_REQ" "$STAMP"; then
   echo "building a clean environment from requirements.txt"
+  rm -rf "$VENV"
   python3 -m venv "$VENV"
   "$VENV/bin/pip" install -q -r "$ROOT_REQ"
+  cp "$ROOT_REQ" "$STAMP"
 fi
 
 echo "importing the application exactly as the platform does"
