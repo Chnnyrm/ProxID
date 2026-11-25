@@ -63,6 +63,15 @@ export function useNearbyListings(verifiedOnly = false) {
   })
 }
 
+/** One service listing. */
+export function useListing(id: string | undefined) {
+  return useQuery({
+    queryKey: ['services', 'detail', id],
+    queryFn: () => providerService.listing(id as string),
+    enabled: Boolean(id),
+  })
+}
+
 /** The caller's published service listings. */
 export function useMyListings(enabled = true) {
   return useQuery({

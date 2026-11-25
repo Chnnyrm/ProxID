@@ -364,6 +364,41 @@ async def _tool_accept_job(context: ToolContext, args: dict[str, Any]) -> dict[s
     }
 
 
+async def _tool_apply_job(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
+    """Provider side: apply for an open job."""
+    raw = args.get("job_id")
+    if not raw:
+        return _error("job_id is required.")
+    try:
+        job_id = uuid.UUID(str(raw))
+    except (TypeError, ValueError):
+        return _error("job_id is not a valid id.")
+
+    message = args.get("message")
+    proposed_price = args.get("proposed_price")
+
+    try:
+        app = await context.jobs.apply_to_job(
+            context.db,
+            context.user,
+            job_id,
+            message=message,
+            proposed_price=proposed_price,
+        )
+    except ApplicationError as exc:
+        return _error(exc.external_message)
+    except Exception as exc:
+        return _error(f"Failed to apply: {exc}")
+
+    return {
+        "ok": True,
+        "application_id": str(app.id),
+        "job_id": str(app.job_id),
+        "status": app.status,
+        "note": "Application submitted successfully! The client has received your proposal.",
+    }
+
+
 async def _tool_send_message(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     """Post into a job room the user belongs to."""
     raw = args.get("job_id")
@@ -544,6 +579,20 @@ _TOOL_TABLE: dict[str, dict[str, Any]] = {
         "handler": _tool_accept_job,
         "read_only": False,
     },
+    "apply_job": {
+        "description": "Provider side: apply for an open job with an optional proposal message.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "job_id": {"type": "string", "description": "Job UUID to apply for."},
+                "message": {"type": "string", "description": "Proposal or introductory message."},
+                "proposed_price": {"type": "number", "description": "Optional proposed price in NGN."},
+            },
+            "required": ["job_id"],
+        },
+        "handler": _tool_apply_job,
+        "read_only": False,
+    },
     "send_message": {
         "description": (
             "Post a message into a job room the user belongs to. Use it to confirm scope, "
@@ -657,6 +706,8 @@ def summarise_step(name: str, result: dict[str, Any]) -> str:
     if name == "accept_job":
         job = result.get("job") or {}
         return f"accepted \"{job.get('title')}\""
+    if name == "apply_job":
+        return f"applied to job {result.get('job_id', '')[:8]}"
     if name == "set_my_location":
         return f"saved location: {result.get('neighbourhood') or 'coordinates'}"
     if name == "send_message":

@@ -14,7 +14,6 @@ import { Link } from 'react-router-dom'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { JobCard } from '@/components/JobCard'
-import { NeighborhoodMap, type MapPoint } from '@/components/map/NeighborhoodMap'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardBody, CardHeader } from '@/components/ui/card'
@@ -85,25 +84,6 @@ export function JobsPage() {
 
     return list
   }, [rawJobs, selectedCategory, searchQuery, sortOrder])
-
-  const points = useMemo<MapPoint[]>(
-    () =>
-      processedJobs
-        .filter((job) => job.latitude !== null && job.longitude !== null)
-        .map((job) => ({
-          id: job.id,
-          kind: 'job',
-          latitude: job.latitude as number,
-          longitude: job.longitude as number,
-          title: job.title,
-          subtitle: job.category_name,
-          price: job.price,
-          distanceKm: job.distance_km,
-          verified: false,
-          href: `/jobs/${job.id}`,
-        })),
-    [processedJobs],
-  )
 
   const hasActiveFilters = searchQuery.trim().length > 0 || selectedCategory !== 'all' || (tab === 'nearby' && radiusKm !== 5)
 
@@ -367,85 +347,71 @@ export function JobsPage() {
         ) : null}
       </div>
 
-      {/* Main Grid: List + Map */}
-      <div className="mt-5 grid gap-5 lg:grid-cols-[1.1fr_1fr]">
-        {/* Left Column: Job Feed */}
-        <div className="min-w-0 space-y-4">
-          {currentQuery.isLoading ? (
-            <CardSkeletonList count={4} />
-          ) : currentQuery.isError ? (
-            <ErrorState
-              title="We could not load the jobs"
-              message="Nothing was changed. Check your connection, then try again."
-              onRetry={() => void currentQuery.refetch()}
-            />
-          ) : processedJobs.length === 0 ? (
-            <div className="space-y-3">
-              <EmptyState
-                icon={<Briefcase size={22} />}
-                title={
-                  hasActiveFilters
-                    ? 'No jobs match your filter'
-                    : tab === 'mine'
-                      ? 'No jobs posted yet'
-                      : `No open jobs within ${radiusKm} km`
-                }
-                description={
-                  hasActiveFilters
-                    ? 'Try clearing your search terms or picking All Categories to see available requests.'
-                    : tab === 'mine'
-                      ? 'Post your first job request to hire verified local professionals.'
-                      : 'Be the first to post a job in this neighbourhood, or widen your distance radius.'
-                }
-                actionLabel={hasActiveFilters ? 'Clear filters' : 'Post a job'}
-                onAction={
-                  hasActiveFilters
-                    ? () => {
-                        setSelectedCategory('all')
-                        setSearchQuery('')
-                      }
-                    : () => setShowForm(true)
-                }
-              />
-              {/* One-tap way to widen radius */}
-              {tab === 'nearby' && (
-                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setRadiusKm(15)}
-                    className="rounded-lg border border-structural bg-ink px-3.5 py-1.5 text-xs font-bold text-page hover:opacity-90 transition-opacity shadow-xs"
-                  >
-                    Widen radius to 15 km
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRadiusKm(25)}
-                    className="rounded-lg border border-line bg-surface px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-sunken transition-colors shadow-xs"
-                  >
-                    Expand to 25 km
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="grid gap-3 sm:grid-cols-2">
-              {processedJobs.map((job) => (
-                <JobCard key={job.id} job={job} />
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Right Column: Interactive Map */}
-        <div className="min-w-0 lg:sticky lg:top-20 lg:self-start">
-          <NeighborhoodMap
-            center={coordinates}
-            radiusKm={radiusKm}
-            points={points}
-            loading={currentQuery.isLoading}
-            height={420}
+      {/* Main Jobs Feed */}
+      <div className="mt-5 space-y-4">
+        {currentQuery.isLoading ? (
+          <CardSkeletonList count={6} />
+        ) : currentQuery.isError ? (
+          <ErrorState
+            title="We could not load the jobs"
+            message="Nothing was changed. Check your connection, then try again."
+            onRetry={() => void currentQuery.refetch()}
           />
-        </div>
+        ) : processedJobs.length === 0 ? (
+          <div className="space-y-3">
+            <EmptyState
+              icon={<Briefcase size={22} />}
+              title={
+                hasActiveFilters
+                  ? 'No jobs match your filter'
+                  : tab === 'mine'
+                    ? 'No jobs posted yet'
+                    : `No open jobs within ${radiusKm} km`
+              }
+              description={
+                hasActiveFilters
+                  ? 'Try clearing your search terms or picking All Categories to see available requests.'
+                  : tab === 'mine'
+                    ? 'Post your first job request to hire verified local professionals.'
+                    : 'Be the first to post a job in this neighbourhood, or widen your distance radius.'
+              }
+              actionLabel={hasActiveFilters ? 'Clear filters' : 'Post a job'}
+              onAction={
+                hasActiveFilters
+                  ? () => {
+                      setSelectedCategory('all')
+                      setSearchQuery('')
+                    }
+                  : () => setShowForm(true)
+              }
+            />
+            {/* One-tap way to widen radius */}
+            {tab === 'nearby' && (
+              <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setRadiusKm(15)}
+                  className="rounded-lg border border-structural bg-ink px-3.5 py-1.5 text-xs font-bold text-page hover:opacity-90 transition-opacity shadow-xs"
+                >
+                  Widen radius to 15 km
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRadiusKm(25)}
+                  className="rounded-lg border border-line bg-surface px-3.5 py-1.5 text-xs font-bold text-ink hover:bg-sunken transition-colors shadow-xs"
+                >
+                  Expand to 25 km
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {processedJobs.map((job) => (
+              <JobCard key={job.id} job={job} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

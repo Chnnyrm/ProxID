@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....core.container import Container
-from ....schemas.user import MeOut, ProviderOut, UserOut, UserUpdate
+from ....schemas.user import MeOut, ProviderOut, PublicProfileOut, UserOut, UserUpdate
 from ...deps import CurrentUser, get_container, get_current_user, get_db
 
 router = APIRouter()
@@ -76,6 +76,16 @@ async def providers_search(
 ) -> list[ProviderOut]:
     """Providers matching a word, for someone who has not shared a location."""
     return await container.users.search_providers(db, q, limit=limit, offset=offset)
+
+
+@router.get("/u/{username}", response_model=PublicProfileOut)
+async def read_public_profile(
+    username: str,
+    db: AsyncSession = Depends(get_db),
+    container: Container = Depends(get_container),
+) -> PublicProfileOut:
+    """A person's public shareable portfolio profile reachable without authentication."""
+    return await container.users.get_public_profile(db, username)
 
 
 @router.get("/{user_id}", response_model=UserOut)

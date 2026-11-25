@@ -19,7 +19,14 @@ from ..crud import job as job_crud
 from ..crud import service as service_crud
 from ..crud import user as user_crud
 from ..models.user import User
-from ..schemas.user import MeOut, ProviderOut, ProviderServiceOut, UserOut, UserUpdate
+from ..schemas.user import (
+    MeOut,
+    ProviderOut,
+    ProviderServiceOut,
+    PublicProfileOut,
+    UserOut,
+    UserUpdate,
+)
 
 #: Radius used when a provider card is built from a coordinate. Ten kilometres is
 #: "my neighbourhood" for a hyper-local marketplace.
@@ -39,6 +46,7 @@ def to_user_out(user: User) -> UserOut:
     return UserOut(
         id=user.id,
         display_name=user.display_name,
+        username=user.username,
         role=user.role,
         avatar_url=user.avatar_url,
         bio=user.bio,
@@ -55,6 +63,7 @@ def to_me_out(user: User) -> MeOut:
     return MeOut(
         id=user.id,
         display_name=user.display_name,
+        username=user.username,
         role=user.role,
         avatar_url=user.avatar_url,
         bio=user.bio,
@@ -104,13 +113,64 @@ class UserService:
         if payload.latitude is not None and payload.longitude is not None:
             await user_crud.update_location(db, user, payload.latitude, payload.longitude)
 
+        if payload.username is not None:
+            clean_username = payload.username.strip().lower()
+            existing = await user_crud.get_by_username(db, clean_username)
+            if existing is not None and existing.id != user.id:
+                raise ValidationError(
+                    f"update_profile refused: username={clean_username} already taken (layer=service)",
+                    operation="update_profile",
+                    external_message="That username is already taken. Please pick another.",
+                )
+            user.username = clean_username
+
         for field, value in payload.model_dump(exclude_unset=True).items():
-            if field in ("latitude", "longitude"):
+            if field in ("latitude", "longitude", "username"):
                 continue
             if value is not None:
                 setattr(user, field, value)
         await db.flush()
         return user
+
+    async def get_public_profile(
+        self, db: AsyncSession, username: str
+    ) -> PublicProfileOut:
+        """The unauthenticated public portfolio for /u/:username."""
+        user = await user_crud.get_by_username(db, username)
+        if user is None:
+            raise NotFoundError(
+                f"get_public_profile failed: username={username} not found (layer=service)",
+                operation="get_public_profile",
+                external_message="We could not find that user profile. It may have been removed or does not exist.",
+            )
+        listings = await service_crud.list_by_provider(db, user.id, limit=20)
+        category_ids = [l.category_id for l in listings if l.category_id is not None]
+        names = await category_crud.names_by_ids(db, category_ids)
+        completed = await job_crud.count_completed_for_provider(db, user.id)
+        vouches = completed if user.concordium_verified else 0
+        return PublicProfileOut(
+            id=user.id,
+            display_name=user.display_name,
+            username=user.username or username,
+            avatar_url=user.avatar_url,
+            bio=user.bio,
+            neighbourhood=user.neighbourhood,
+            concordium_verified=user.concordium_verified,
+            completed_jobs=completed,
+            vouches_count=vouches,
+            average_rating=None,
+            member_since=user.created_at,
+            services=[
+                ProviderServiceOut(
+                    id=l.id,
+                    title=l.title,
+                    price=float(l.price),
+                    category_name=names.get(l.category_id) if l.category_id else None,
+                    image_url=l.image_url,
+                )
+                for l in listings
+            ],
+        )
 
     def require_self(self, actor: User, subject_id: uuid.UUID) -> None:
         """Deny access to anyone else's private profile."""

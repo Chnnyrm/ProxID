@@ -509,6 +509,14 @@ export function AgentPage() {
                                 } else {
                                   executeCommand(`hire provider ${act.payload?.provider_id || act.label}`)
                                 }
+                              } else if (act.kind === 'apply') {
+                                if (act.payload?.command) {
+                                  executeCommand(String(act.payload.command))
+                                } else if (act.payload?.job_id) {
+                                  executeCommand(`apply to job ${act.payload.job_id}`)
+                                } else if (act.target) {
+                                  navigate(act.target)
+                                }
                               } else if (act.kind === 'navigate' && act.target) {
                                 navigate(act.target)
                               } else if (act.payload?.command) {

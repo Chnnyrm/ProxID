@@ -12,11 +12,21 @@ import type {
   MessagesResponse,
   RoomResponse,
 } from '@/lib/contracts'
-import type { JobMessage } from '@/types/api'
+import type { Application, JobMessage } from '@/types/api'
 
 export const jobService = {
   /** The open-jobs list, ranked by freshness blended with activity. */
   browse: (limit = 20, offset = 0) => api.get<JobsResponse>(`/jobs${query({ limit, offset })}`),
+
+  /** Job IDs the current user has applied to. */
+  appliedIds: () => api.get<string[]>('/jobs/applied-ids'),
+
+  /** Apply to an open job. */
+  apply: (jobId: string, message?: string, proposedPrice?: number) =>
+    api.post<Application>(`/jobs/${jobId}/apply`, {
+      message: message || undefined,
+      proposed_price: proposedPrice || undefined,
+    }),
 
   /** Open jobs around a point, nearest first. Radius zero means no limit. */
   nearby: (coords: Coordinates, radiusKm: number, limit = 30) =>

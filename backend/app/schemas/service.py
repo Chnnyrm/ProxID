@@ -78,6 +78,14 @@ class ServiceOut(OutputModel):
     distance_km: float | None = None
     provider_display_name: str | None = None
     provider_avatar_url: str | None = None
+    provider_username: str | None = None
     provider_concordium_verified: bool = False
+    provider_completed_jobs: int = 0
+    provider_vouches_count: int = 0
+    provider_average_rating: float | None = None
+    provider_other_listings: list["ServiceOut"] = Field(default_factory=list)
     is_demo: bool = False
     created_at: datetime
+
+
+ServiceOut.model_rebuild()

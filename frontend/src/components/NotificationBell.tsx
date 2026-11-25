@@ -13,6 +13,7 @@ import {
   usePushStatus,
   useTriggerTestNotification,
 } from '@/hooks/useNotifications'
+import { useApplyJob } from '@/hooks/useJobs'
 import { subscribeToPushNotifications } from '@/lib/push'
 
 export function NotificationBell() {
@@ -24,6 +25,7 @@ export function NotificationBell() {
   const pushStatus = usePushStatus()
   const markRead = useMarkNotificationRead()
   const triggerTest = useTriggerTestNotification()
+  const applyJob = useApplyJob()
 
   const list = notifications.data || []
   const unreadCount = list.filter((n) => !n.is_read).length
@@ -157,8 +159,15 @@ export function NotificationBell() {
                         <button
                           key={i}
                           type="button"
-                          onClick={() => {
+                          onClick={async () => {
                             if (!item.is_read) markRead.mutate(item.id)
+                            if (act.action === 'apply' && act.job_id) {
+                              try {
+                                await applyJob.mutateAsync({ jobId: String(act.job_id) })
+                              } catch {
+                                // Handled
+                              }
+                            }
                             if (item.link) navigate(item.link)
                             setIsOpen(false)
                           }}

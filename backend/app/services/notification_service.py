@@ -83,18 +83,21 @@ async def dispatch_notification(
         db,
         settings,
         user_id,
-        title=title,
-        message=message,
+        title=f"[Web Push] {title}" if not title.startswith("[") else title,
+        message=f"[Web Push] {message}" if not message.startswith("[") else message,
         link=link,
         type=type,
         actions=actions,
     )
 
+    path_tag = "[Web Push]" if push_delivered else "[In-App]"
+    tagged_message = message if message.startswith("[") else f"{path_tag} {message}"
+
     notif = await notification_crud.create(
         db,
         user_id,
         title=title,
-        message=message,
+        message=tagged_message,
         link=link,
         type=type,
         tag=tag,

@@ -37,6 +37,7 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     google_id: Mapped[str | None] = mapped_column(String(255), nullable=True, unique=True)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    username: Mapped[str | None] = mapped_column(String(60), nullable=True, unique=True, index=True)
     phone_number: Mapped[str | None] = mapped_column(String(32), nullable=True, unique=True)
     avatar_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)

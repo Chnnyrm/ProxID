@@ -32,13 +32,16 @@ class UserRegister(TrimmedText):
 class UserLogin(InputModel):
     """Sign in with an email and a password."""
 
-    email: EmailStr
+    email: str = Field(min_length=3, max_length=255)
     password: str = Field(min_length=1, max_length=PASSWORD_MAX_LENGTH)
 
     @field_validator("email")
     @classmethod
     def _normalise_email(cls, value: str) -> str:
-        return value.strip().lower()
+        cleaned = value.strip().lower()
+        if "@" not in cleaned:
+            raise ValueError("Email does not look like an email address.")
+        return cleaned
 
 
 class GoogleCredential(InputModel):
@@ -55,6 +58,7 @@ class UserUpdate(TrimmedText):
     """
 
     display_name: str | None = Field(default=None, min_length=2, max_length=80)
+    username: str | None = Field(default=None, min_length=3, max_length=30, pattern="^[a-z0-9_-]+$")
     bio: str | None = Field(default=None, max_length=1000)
     avatar_url: str | None = Field(default=None, max_length=2048)
     latitude: float | None = Field(default=None, ge=-90, le=90)
@@ -81,6 +85,7 @@ class UserOut(OutputModel):
 
     id: uuid.UUID
     display_name: str
+    username: str | None = None
     role: str
     avatar_url: str | None = None
     bio: str | None = None
@@ -89,6 +94,23 @@ class UserOut(OutputModel):
     cis8004_agent_id: str | None = None
     is_demo: bool
     created_at: datetime
+
+
+class PublicProfileOut(OutputModel):
+    """The public shareable profile reachable at /u/:username without auth."""
+
+    id: uuid.UUID
+    display_name: str
+    username: str
+    avatar_url: str | None = None
+    bio: str | None = None
+    neighbourhood: str | None = None
+    concordium_verified: bool = False
+    completed_jobs: int = 0
+    vouches_count: int = 0
+    average_rating: float | None = None
+    member_since: datetime
+    services: list["ProviderServiceOut"] = Field(default_factory=list)
 
 
 class MeOut(UserOut):
@@ -127,3 +149,4 @@ class ProviderServiceOut(OutputModel):
 
 SessionOut.model_rebuild()
 ProviderOut.model_rebuild()
+PublicProfileOut.model_rebuild()

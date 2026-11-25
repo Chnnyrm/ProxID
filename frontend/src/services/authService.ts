@@ -5,7 +5,7 @@
 
 import { api } from '@/lib/api'
 import type { SessionResponse } from '@/lib/contracts'
-import type { Me } from '@/types/api'
+import type { Me, PublicProfile } from '@/types/api'
 
 export const authService = {
   /** Sign in with an email and a password. */
@@ -32,9 +32,13 @@ export const authService = {
   /** The signed-in person, used to restore a session on page load. */
   me: () => api.get<Me>('/users/me'),
 
+  /** A user's public portfolio profile. Unauthenticated. */
+  publicProfile: (username: string) => api.get<PublicProfile>(`/users/u/${username}`),
+
   /** Update the signed-in person's own profile. */
   updateProfile: (data: {
     display_name?: string
+    username?: string
     bio?: string
     avatar_url?: string
     neighbourhood?: string

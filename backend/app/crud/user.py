@@ -55,6 +55,15 @@ async def get_by_google_id(db: AsyncSession, google_id: str) -> User | None:
     return result.scalar_one_or_none()
 
 
+async def get_by_username(db: AsyncSession, username: str) -> User | None:
+    """One user by username, compared case-insensitively after normalisation."""
+    normalised = (username or "").strip().lower()
+    if not normalised:
+        return None
+    result = await db.execute(select(User).where(func.lower(User.username) == normalised))
+    return result.scalar_one_or_none()
+
+
 async def create(
     db: AsyncSession,
     *,

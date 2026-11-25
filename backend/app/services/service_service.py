@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..core.errors import AuthorizationError, NotFoundError, ValidationError
 from ..core.geo import extract_coordinates
 from ..crud import category as category_crud
+from ..crud import job as job_crud
 from ..crud import service as service_crud
 from ..crud import user as user_crud
 from ..models.service import ServiceListing
@@ -29,6 +30,10 @@ def to_service_out(
     distance_metres: float | None = None,
     provider: User | None = None,
     category_name: str | None = None,
+    provider_completed_jobs: int = 0,
+    provider_vouches_count: int = 0,
+    provider_average_rating: float | None = None,
+    provider_other_listings: list[ServiceOut] | None = None,
 ) -> ServiceOut:
     """Map a listing to its wire shape.
 
@@ -56,7 +61,12 @@ def to_service_out(
         distance_km=round(distance_metres / 1000.0, 2) if distance_metres is not None else None,
         provider_display_name=provider.display_name if provider else None,
         provider_avatar_url=provider.avatar_url if provider else None,
+        provider_username=provider.username if provider else None,
         provider_concordium_verified=provider.concordium_verified if provider else False,
+        provider_completed_jobs=provider_completed_jobs,
+        provider_vouches_count=provider_vouches_count,
+        provider_average_rating=provider_average_rating,
+        provider_other_listings=provider_other_listings or [],
         is_demo=listing.is_demo,
         created_at=listing.created_at,
     )
@@ -228,7 +238,33 @@ class ServiceListingService:
         if listing.category_id is not None:
             names = await category_crud.names_by_ids(db, [listing.category_id])
             category_name = names.get(listing.category_id)
-        return to_service_out(listing, provider=provider, category_name=category_name)
+
+        completed = await job_crud.count_completed_for_provider(db, listing.provider_id)
+        vouches = completed if (provider and provider.concordium_verified) else 0
+
+        # Provider's other listings
+        raw_other = await service_crud.list_by_provider(db, listing.provider_id, limit=6)
+        other_cats = await category_crud.names_by_ids(
+            db, [l.category_id for l in raw_other if l.category_id is not None]
+        )
+        other_listings = [
+            to_service_out(
+                l,
+                provider=provider,
+                category_name=other_cats.get(l.category_id),
+            )
+            for l in raw_other
+            if l.id != listing.id
+        ]
+
+        return to_service_out(
+            listing,
+            provider=provider,
+            category_name=category_name,
+            provider_completed_jobs=completed,
+            provider_vouches_count=vouches,
+            provider_other_listings=other_listings,
+        )
 
     async def _owned_listing(
         self, db: AsyncSession, actor: User, listing_id: uuid.UUID, *, operation: str

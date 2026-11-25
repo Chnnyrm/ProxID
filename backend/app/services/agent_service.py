@@ -12,6 +12,7 @@ Features:
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
@@ -273,6 +274,55 @@ async def run_agent(
             reply=reply,
             steps=[],
             used_tools=[],
+            degraded=False,
+            context=context,
+            actions=actions,
+        )
+
+    # 4. Explicit apply commands: e.g. "apply to job <uuid>"
+    apply_match = re.search(r"apply\s+(?:to\s+)?(?:job\s+)?([0-9a-f-]{36})", cmd_lower)
+    if apply_match:
+        target_job_id_str = apply_match.group(1)
+        target_job_uuid = uuid.UUID(target_job_id_str)
+        tool_res = await execute_tool(
+            services.tool_context,
+            "apply_job",
+            {"job_id": target_job_id_str},
+            job_id=target_job_uuid,
+        )
+        if tool_res.get("ok"):
+            reply = f"I have submitted your application for job {target_job_id_str[:8]}... The client has received your application."
+            actions = [
+                {
+                    "id": f"view-job-{target_job_id_str}",
+                    "label": "View Job Details",
+                    "kind": "navigate",
+                    "target": f"/jobs/{target_job_id_str}",
+                }
+            ]
+        else:
+            reply = f"Could not submit application: {tool_res.get('error', 'unknown error')}"
+            actions = []
+
+        await agent_conversation_crud.add_turn(
+            db, conv.id, user.id, role="user", content=command, is_demo=user.is_demo
+        )
+        await agent_conversation_crud.add_turn(
+            db,
+            conv.id,
+            user.id,
+            role="assistant",
+            content=reply,
+            steps=[{"name": "apply_job", "arguments": {"job_id": target_job_id_str}, "result": tool_res}],
+            used_tools=["apply_job"],
+            actions=actions,
+            degraded=False,
+            is_demo=user.is_demo,
+        )
+        return RunOutcome(
+            reply=reply,
+            steps=[{"name": "apply_job", "arguments": {"job_id": target_job_id_str}, "result": tool_res}],
+            used_tools=["apply_job"],
             degraded=False,
             context=context,
             actions=actions,
