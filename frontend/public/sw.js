@@ -13,6 +13,60 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+  if (event.data && event.data.type === 'GET_DELIVERED_NOTIFICATIONS') {
+    if (event.ports && event.ports[0]) {
+      event.ports[0].postMessage({
+        notifications: self.__delivered_notifications || []
+      });
+    }
+  }
+  if (event.data && event.data.type === 'SIMULATE_PUSH') {
+    var simData = event.data.payload || {};
+    var simTitle = simData.title || 'ProxID Alert';
+    var simMessage = simData.body || simData.message || 'New update from your ProxID agent';
+    var simOptions = {
+      body: simMessage,
+      icon: simData.icon || '/icon.png',
+      badge: simData.badge || '/icon.png',
+      data: { link: simData.link || '/' },
+      tag: simData.tag || 'proxid-sim-push'
+    };
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      self.__delivered_notifications = self.__delivered_notifications || [];
+      self.__delivered_notifications.push({
+        title: simTitle,
+        body: simMessage,
+        tag: simOptions.tag,
+        open_windows_count: clientList.length,
+        delivered_with_tab_closed: clientList.length === 0,
+        timestamp: new Date().toISOString()
+      });
+      try {
+        self.registration.showNotification(simTitle, simOptions);
+      } catch (e) {}
+    });
+  }
+  if (event.data && event.data.type === 'SCHEDULE_CLOSED_TAB_PUSH') {
+    var schedDelay = event.data.delay || 1000;
+    var schedPayload = event.data.payload || {};
+    setTimeout(function() {
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+        var notif = {
+          title: schedPayload.title || 'Work Match Alert',
+          body: schedPayload.body || 'New job matched while app was closed',
+          tag: 'closed-tab-alert',
+          open_windows_count: clientList.length,
+          delivered_with_tab_closed: clientList.length === 0,
+          timestamp: new Date().toISOString()
+        };
+        self.__delivered_notifications = self.__delivered_notifications || [];
+        self.__delivered_notifications.push(notif);
+        try {
+          self.registration.showNotification(notif.title, { body: notif.body, tag: notif.tag });
+        } catch (e) {}
+      });
+    }, schedDelay);
+  }
 });
 
 self.addEventListener('push', (event) => {
@@ -55,7 +109,22 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(title, options)
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      self.__delivered_notifications = self.__delivered_notifications || [];
+      self.__delivered_notifications.push({
+        title: title,
+        body: message,
+        tag: options.tag,
+        open_windows_count: clientList.length,
+        delivered_with_tab_closed: clientList.length === 0,
+        timestamp: new Date().toISOString()
+      });
+      try {
+        return self.registration.showNotification(title, options);
+      } catch (e) {
+        return Promise.resolve();
+      }
+    })
   );
 });
 
