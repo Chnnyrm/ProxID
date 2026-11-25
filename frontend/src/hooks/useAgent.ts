@@ -11,11 +11,21 @@ export const agentKeys = {
   activity: ['agent', 'activity'] as const,
   card: ['agent', 'card'] as const,
   identity: ['agent', 'identity'] as const,
+  conversation: ['agent', 'conversation'] as const,
 }
 
 /** Whether the model is configured, and which tools exist. */
 export function useAgentTools() {
   return useQuery({ queryKey: agentKeys.tools, queryFn: () => agentService.tools() })
+}
+
+/** Load user's persisted conversation thread. */
+export function useAgentConversation(enabled: boolean) {
+  return useQuery({
+    queryKey: agentKeys.conversation,
+    queryFn: () => agentService.conversation(),
+    enabled,
+  })
 }
 
 /** What the agent did on this account. */
@@ -53,6 +63,7 @@ export function useRunAgent() {
       agentService.run(input.command, input.jobId),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: agentKeys.activity })
+      void queryClient.invalidateQueries({ queryKey: agentKeys.conversation })
       void queryClient.invalidateQueries({ queryKey: ['jobs'] })
     },
   })

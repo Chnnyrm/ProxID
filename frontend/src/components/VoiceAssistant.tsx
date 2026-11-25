@@ -1,19 +1,17 @@
 /**
- * VoiceAssistant.tsx - Floating push-to-talk mic and companion popup for proxidAI.
- *
- * Adapted from Gigr/frontend/src/components/VoiceAssistant.tsx (459 lines)
+ * VoiceAssistant.tsx - Floating push-to-talk mic for proxidAI.
  * Pure ASCII, palette compliant (Ink #474329, Sand #FAF4ED, Accent #FC75B4).
  *
- * Tap-to-speak flow:
- * - Tapping the mic button opens the companion speech popup and starts listening immediately.
- * - Live speech transcripts stream in real-time inside the companion card.
- * - Auto-submits on speech completion (silence debounce or onend).
- * - Opens the Agent activity view and shows the tool calls and results.
+ * Requirements:
+ * - Tapping mic records audio.
+ * - On speech completion, navigates to /agent with command transcript.
+ * - Shows live transcription indicator while recording.
+ * - No misaligned inline textarea popup.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Mic, Loader2, X, Send } from 'lucide-react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Mic, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import {
   motion,
   AnimatePresence,
@@ -28,10 +26,8 @@ import { useAgentStore } from '@/store/agentStore'
 import { agentAudio } from '@/lib/agentAudio'
 
 const BUTTON_RADIUS = 28
-/** The body is fully stretched once it trails the pointer by this many pixels. */
 const MAX_PULL = 56
 
-/** A blob that lags behind the dragged button, so pulling leaves a tail of it behind. */
 function TrailBlob({
   dragX,
   dragY,
@@ -60,14 +56,10 @@ function TrailBlob({
 
 export default function VoiceAssistant() {
   const navigate = useNavigate()
-  const location = useLocation()
-  const { aiSettings, submitCommand, openPanel, navigateTarget, clearNavigateTarget } = useAgentStore()
+  const { aiSettings } = useAgentStore()
 
-  const [isOpen, setIsOpen] = useState(false)
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
-  const [typedCommand, setTypedCommand] = useState('')
-  const [isProcessing, setIsProcessing] = useState(false)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
 
   // Drag physics for mic button
@@ -126,40 +118,22 @@ export default function VoiceAssistant() {
   }, [])
 
   const handleSubmit = useCallback(
-    async (spokenSpeech: string) => {
+    (spokenSpeech: string) => {
       const cleanSpeech = spokenSpeech.trim()
       if (!cleanSpeech) return
 
       stopListening()
-      setIsProcessing(true)
+      setTranscript('')
+      speechBufferRef.current = ''
 
-      try {
-        const result = await submitCommand(cleanSpeech)
-        if (result) {
-          setIsOpen(false)
-          openPanel()
-          if (aiSettings.soundEnabled) {
-            agentAudio.playSuccessChime()
-          }
-          showToast(`proxidAI: ${cleanSpeech.slice(0, 45)}`)
-
-          // Check if action navigates or moves screen
-          const target = useAgentStore.getState().navigateTarget
-          if (target) {
-            clearNavigateTarget()
-            navigate(target)
-          }
-        }
-      } catch {
-        showToast('Failed to execute command.')
-      } finally {
-        setIsProcessing(false)
-        setTranscript('')
-        setTypedCommand('')
-        speechBufferRef.current = ''
+      if (aiSettings.soundEnabled) {
+        agentAudio.playSuccessChime()
       }
+
+      // Navigate directly to /agent with command
+      navigate(`/agent?command=${encodeURIComponent(cleanSpeech)}`)
     },
-    [aiSettings.soundEnabled, clearNavigateTarget, navigate, openPanel, stopListening, submitCommand],
+    [aiSettings.soundEnabled, navigate, stopListening],
   )
 
   const startListening = useCallback(() => {
@@ -244,18 +218,14 @@ export default function VoiceAssistant() {
     }
   }, [])
 
-  if (!aiSettings.voiceEnabled || location.pathname === '/agent') return null
-
   const handleMicToggle = () => {
     if (isListening) {
       if (speechBufferRef.current.trim()) {
         handleSubmit(speechBufferRef.current)
       } else {
         stopListening()
-        setIsOpen(false)
       }
     } else {
-      setIsOpen(true)
       startListening()
     }
   }
@@ -268,16 +238,7 @@ export default function VoiceAssistant() {
     handleMicToggle()
   }
 
-  const handleClose = () => {
-    stopListening()
-    setIsOpen(false)
-    setTranscript('')
-    setTypedCommand('')
-    speechBufferRef.current = ''
-  }
-
-  // Ink button with accent pulse when listening
-  const bodyColor = isListening ? 'bg-ink' : 'bg-ink'
+  const bodyColor = 'bg-ink'
 
   const pressSquash = () => {
     void squash.start({
@@ -332,7 +293,7 @@ export default function VoiceAssistant() {
             draggedRef.current = false
           }, 80)
         }}
-        className="fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-[9999] w-14 h-14 flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
+        className="fixed bottom-20 right-4 lg:bottom-8 lg:right-8 z-[9999] flex items-center justify-center cursor-grab active:cursor-grabbing touch-none select-none"
       >
         <svg width="0" height="0" className="absolute" aria-hidden="true" focusable="false">
           <defs>
@@ -342,6 +303,23 @@ export default function VoiceAssistant() {
             </filter>
           </defs>
         </svg>
+
+        {/* Live speech feedback pill above mic button */}
+        <AnimatePresence>
+          {isListening && (
+            <motion.div
+              initial={{ opacity: 0, y: 8, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.95 }}
+              className="absolute -top-12 right-0 whitespace-nowrap bg-surface border border-line px-3 py-1.5 rounded-full shadow-md flex items-center gap-2 pointer-events-none"
+            >
+              <span className="w-2 h-2 rounded-full bg-accent animate-ping" />
+              <span className="text-[11px] font-mono font-medium text-ink">
+                {transcript ? `"${transcript}"` : 'Listening... speak now'}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         <div
           className="absolute inset-0 pointer-events-none"
@@ -409,121 +387,15 @@ export default function VoiceAssistant() {
           title={
             isListening
               ? transcript
-                ? `"${transcript}" - Tap to send`
-                : 'Listening... Tap to send'
+                ? `"${transcript}" - Tap to submit`
+                : 'Listening... Tap to submit'
               : 'proxidAI - Tap to speak (Drag anywhere)'
           }
           aria-label={isListening ? 'Stop recording voice command' : 'Start recording voice command'}
         >
-          {isProcessing ? (
-            <Loader2 className="w-6 h-6 animate-spin text-page" />
-          ) : (
-            <Mic className={`w-6 h-6 text-page ${isListening ? 'animate-pulse text-accent' : ''}`} />
-          )}
+          <Mic className={`w-6 h-6 text-page ${isListening ? 'animate-pulse text-accent' : ''}`} />
         </motion.button>
       </motion.div>
-
-      {/* Speech Companion Popup Panel */}
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.92, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 12 }}
-            transition={{ duration: 0.18 }}
-            className="fixed bottom-36 right-4 lg:bottom-24 lg:right-8 z-[9999] w-84 max-w-[calc(100vw-2rem)]"
-          >
-            <div className="bg-surface rounded-2xl shadow-xl border border-line overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between px-4 py-2.5 border-b border-line bg-sunken/40">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={`w-2 h-2 rounded-full ${
-                      isListening ? 'bg-accent animate-pulse' : 'bg-structural'
-                    }`}
-                  />
-                  <span className="text-xs font-semibold tracking-tight text-ink font-display uppercase">
-                    proxidAI
-                  </span>
-                  <span className="text-[10px] font-mono text-muted">
-                    {isListening ? '[LISTENING]' : isProcessing ? '[PROCESSING]' : '[READY]'}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleClose}
-                  className="p-1 rounded-lg text-muted hover:text-ink hover:bg-sunken transition-colors"
-                  aria-label="Close assistant"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-
-              {/* Live speech typing display */}
-              <div className="p-4 min-h-[96px] flex flex-col justify-center">
-                {isProcessing ? (
-                  <div className="flex items-center justify-center gap-2 py-4 text-muted">
-                    <Loader2 className="w-4 h-4 animate-spin text-ink" />
-                    <span className="text-xs font-medium">Processing instruction...</span>
-                  </div>
-                ) : transcript ? (
-                  <div className="text-xs text-ink font-medium leading-relaxed bg-sunken/50 p-3 rounded-xl border border-line">
-                    "{transcript}"
-                  </div>
-                ) : isListening ? (
-                  <div className="flex flex-col items-center justify-center gap-2 py-2">
-                    <div className="flex items-center gap-1.5">
-                      <span
-                        className="w-2 h-2 bg-accent rounded-full animate-bounce"
-                        style={{ animationDelay: '0ms' }}
-                      />
-                      <span
-                        className="w-2 h-2 bg-accent rounded-full animate-bounce"
-                        style={{ animationDelay: '150ms' }}
-                      />
-                      <span
-                        className="w-2 h-2 bg-accent rounded-full animate-bounce"
-                        style={{ animationDelay: '300ms' }}
-                      />
-                    </div>
-                    <span className="text-xs text-muted">Listening to your voice... speak now</span>
-                  </div>
-                ) : (
-                  <p className="text-xs text-muted text-center py-2">
-                    Tap the mic to speak, or type your request below.
-                  </p>
-                )}
-              </div>
-
-              {/* Text input fallback */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault()
-                  if (typedCommand.trim()) handleSubmit(typedCommand)
-                }}
-                className="p-2.5 pt-0 flex gap-1.5 items-center"
-              >
-                <input
-                  type="text"
-                  value={typedCommand}
-                  onChange={(e) => setTypedCommand(e.target.value)}
-                  placeholder="Or type an instruction..."
-                  disabled={isProcessing}
-                  className="flex-1 text-xs bg-sunken/50 border border-line rounded-xl px-3 py-2 text-ink placeholder-muted focus:outline-none focus:ring-1 focus:ring-structural"
-                />
-                <button
-                  type="submit"
-                  disabled={!typedCommand.trim() || isProcessing}
-                  className="h-8 w-8 rounded-xl bg-ink hover:opacity-90 text-page flex items-center justify-center shrink-0 disabled:opacity-40 transition-colors shadow-xs"
-                  title="Send"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                </button>
-              </form>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </>
   )
 }

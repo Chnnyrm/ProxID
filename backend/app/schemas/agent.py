@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-
 from typing import Any
 
 from pydantic import Field
 
 from .base import OutputModel, TrimmedText
+
+
+class AgentAction(OutputModel):
+    """An actionable choice rendered under an agent reply."""
+
+    id: str
+    label: str
+    kind: str
+    payload: dict[str, Any] | None = None
+    target: str | None = None
 
 
 class AgentRunRequest(TrimmedText):
@@ -36,5 +45,28 @@ class AgentRunOut(OutputModel):
     reply: str
     steps: list[AgentStepOut] = Field(default_factory=list)
     used_tools: list[str] = Field(default_factory=list)
-    #: True when the model was unavailable and a rule-based answer was given.
     degraded: bool = False
+    actions: list[AgentAction] = Field(default_factory=list)
+
+
+class AgentTurnOut(OutputModel):
+    """A single turn in the persisted conversation thread."""
+
+    id: uuid.UUID
+    conversation_id: uuid.UUID
+    role: str
+    content: str
+    steps: list[AgentStepOut] | None = None
+    used_tools: list[str] | None = None
+    actions: list[AgentAction] | None = None
+    degraded: bool = False
+    created_at: datetime
+
+
+class AgentConversationOut(OutputModel):
+    """A user's conversation with historical turns."""
+
+    id: uuid.UUID
+    title: str
+    turns: list[AgentTurnOut] = Field(default_factory=list)
+    created_at: datetime

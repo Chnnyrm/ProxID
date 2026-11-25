@@ -4,7 +4,7 @@
 
 import { api } from '@/lib/api'
 import type { AgentRunResponse, AgentActivityResponse } from '@/lib/contracts'
-import type { AgentCard, AgentIdentity, AgentTools } from '@/types/api'
+import type { AgentCard, AgentConversation, AgentIdentity, AgentTools } from '@/types/api'
 
 export const agentService = {
   /** Ask the agent to do something. The reply carries what it actually did. */
@@ -13,6 +13,9 @@ export const agentService = {
       command,
       ...(jobId ? { job_id: jobId } : {}),
     }),
+
+  /** Load the conversation history with prior turns. */
+  conversation: () => api.get<AgentConversation>('/agent/conversation'),
 
   /** The tools this build exposes, and whether a model is configured. */
   tools: () => api.get<AgentTools>('/agent/tools'),

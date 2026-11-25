@@ -199,6 +199,11 @@ class Settings(BaseSettings):
     # Whether a human must approve each payment before it is initiated.
     AGENT_REQUIRES_HUMAN_APPROVAL: bool = True
 
+    # -- Web Push (VAPID) ----------------------------------------------------
+    VAPID_PUBLIC_KEY: str | None = None
+    VAPID_PRIVATE_KEY: str | None = None
+    VAPID_SUBJECT: str = "mailto:kookafor893@gmail.com"
+
     # -- Resilience ----------------------------------------------------------
     BREAKER_FAILURE_THRESHOLD: int = 5
     BREAKER_RESET_SECONDS: float = 30.0

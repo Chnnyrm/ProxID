@@ -9,12 +9,13 @@
  *    - Degraded notice: clearly stating when model is not connected rather than blank.
  *    - Empty state: 3 tappable prompt suggestions.
  *    - Visible working state: "searching nearby providers..." with tool indicator.
+ *    - Actionable chips: tappable buttons under agent replies (e.g. Hire provider with price, or prompt).
  *    - Persistent bottom input: mic on left (data-tour="tour-mic"), input center, send on right,
  *      sticky above bottom navigation at 390px (sticky bottom-16 lg:bottom-0).
  *    - Consent card (data-tour="tour-consent"): human-in-the-loop spending limit warning.
- * 2. Mic auto-submit:
- *    - Live speech transcription immediately calls POST /api/v1/agent/run with {"command": transcript}.
- *    - Renders reply, steps, used_tools, and degraded.
+ * 2. Conversation memory:
+ *    - Loads persisted conversation turns on mount.
+ *    - Maintains thread across page reloads.
  * 3. 100% Pure ASCII, palette compliant (Ink #474329, Sand #FAF4ED, Accent #FC75B4).
  */
 
@@ -42,18 +43,19 @@ import {
   XCircle,
 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { useAuth } from '@/hooks/useAuth'
 import {
   useAgentActivity,
   useAgentCard,
+  useAgentConversation,
   useAgentIdentity,
   useAgentTools,
   useRunAgent,
 } from '@/hooks/useAgent'
 import { useLocationStore } from '@/store/locationStore'
-import type { AgentStep } from '@/types/api'
+import type { AgentAction, AgentStep } from '@/types/api'
 
 interface ChatMessage {
   id: string
@@ -62,6 +64,7 @@ interface ChatMessage {
   steps?: AgentStep[]
   used_tools?: string[]
   degraded?: boolean
+  actions?: AgentAction[]
   timestamp: string
 }
 
@@ -76,10 +79,15 @@ const SUGGESTED_PROMPTS = [
 
 export function AgentPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const initialCommand = searchParams.get('command')
+  const handledInitialRef = useRef(false)
+
   const { isSignedIn, user } = useAuth()
   const tools = useAgentTools()
   const card = useAgentCard(isSignedIn)
   const identity = useAgentIdentity(isSignedIn)
+  const conversation = useAgentConversation(isSignedIn)
   const runAgent = useRunAgent()
   const setCoordinates = useLocationStore((state) => state.setCoordinates)
 
@@ -93,6 +101,26 @@ export function AgentPage() {
   const recognitionRef = useRef<any>(null)
   const chatBottomRef = useRef<HTMLDivElement | null>(null)
   const silenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Hydrate conversation from database on load
+  useEffect(() => {
+    if (conversation.data?.turns && conversation.data.turns.length > 0 && messages.length === 0) {
+      const turns: ChatMessage[] = conversation.data.turns.map((t) => ({
+        id: t.id,
+        role: t.role === 'user' ? 'user' : 'agent',
+        text: t.content,
+        steps: t.steps || undefined,
+        used_tools: t.used_tools || undefined,
+        degraded: t.degraded,
+        actions: t.actions || undefined,
+        timestamp: new Date(t.created_at).toLocaleTimeString([], {
+          hour: '2-digit',
+          minute: '2-digit',
+        }),
+      }))
+      setMessages(turns)
+    }
+  }, [conversation.data, messages.length])
 
   // Scroll to latest message
   const scrollToBottom = () => {
@@ -158,6 +186,7 @@ export function AgentPage() {
               steps: data.steps,
               used_tools: data.used_tools,
               degraded: data.degraded,
+              actions: data.actions,
               timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
             }
             setMessages((prev) => [...prev, agentMsg])
@@ -178,6 +207,17 @@ export function AgentPage() {
     },
     [runAgent, setCoordinates, stopListening],
   )
+
+  // Handle URL command param on mount
+  useEffect(() => {
+    if (initialCommand && initialCommand.trim() && !handledInitialRef.current) {
+      handledInitialRef.current = true
+      const cmd = initialCommand.trim()
+      searchParams.delete('command')
+      setSearchParams(searchParams, { replace: true })
+      executeCommand(cmd)
+    }
+  }, [initialCommand, searchParams, setSearchParams, executeCommand])
 
   // Start speech recognition
   const startListening = useCallback(() => {
@@ -214,7 +254,6 @@ export function AgentPage() {
         setSpeechInterim(activeText)
       }
 
-      // If speech completed, auto-submit immediately
       if (finalSpeech.trim()) {
         const spoken = finalSpeech.trim()
         stopListening()
@@ -228,7 +267,6 @@ export function AgentPage() {
 
     recognition.onend = () => {
       setIsListening(false)
-      // If there was captured interim text on end, auto-submit it
       if (speechInterim.trim() && speechInterim !== 'Listening...') {
         const spoken = speechInterim.trim()
         setSpeechInterim('')
@@ -298,43 +336,38 @@ export function AgentPage() {
 
         <button
           type="button"
-          onClick={() => setShowCardDetails((v) => !v)}
-          className="inline-flex items-center gap-1 text-xs font-semibold text-muted hover:text-ink border border-line bg-surface rounded-lg px-2.5 py-1.5 transition-colors shadow-xs"
+          onClick={() => setShowCardDetails(!showCardDetails)}
+          className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-mono text-muted hover:text-ink hover:border-structural transition-colors shadow-xs"
         >
-          <Shield size={13} className="text-accent" />
-          <span className="hidden sm:inline">Registry Card</span>
-          {showCardDetails ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+          <span>Card Details</span>
+          {showCardDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
         </button>
       </header>
 
-      {/* Expandable Cryptographic Card & Checks */}
+      {/* Expandable Agent Card Details */}
       {showCardDetails && (
-        <section className="shrink-0 p-3 my-2 rounded-xl border border-line bg-sunken/40 space-y-2 text-xs">
-          <div className="flex items-center justify-between font-mono text-[11px] text-muted">
-            <span className="font-bold text-ink uppercase tracking-wider">
-              Concordium CIS-8004 Agent Card
+        <div className="my-2 p-3 bg-surface border border-line rounded-xl shadow-xs space-y-2 text-xs">
+          <div className="flex items-center justify-between border-b border-line pb-2">
+            <span className="font-mono font-bold text-ink">Agent On-Chain Registration</span>
+            <span className="font-mono text-[10px] text-muted">
+              {card.data?.registered ? 'REGISTERED' : 'LOCAL PROTOTYPE'}
             </span>
-            <span>Status: Verified</span>
           </div>
-          {card.data ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-              {card.data.verification.checks.map((check) => (
-                <div
-                  key={check.name}
-                  className="flex items-start gap-2 bg-surface p-2 rounded-lg border border-line"
-                >
-                  <CheckCircle2 size={14} className="mt-0.5 text-accent shrink-0" />
-                  <div className="min-w-0">
-                    <p className="font-semibold text-ink leading-tight">{check.name}</p>
-                    <p className="text-[10px] text-muted truncate">{check.detail}</p>
-                  </div>
-                </div>
-              ))}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+            <div>
+              <span className="text-muted block">Human Identity:</span>
+              <span className="text-ink font-semibold">
+                {identity.data?.human_verified ? 'Verified Human' : 'Unverified'}
+              </span>
             </div>
-          ) : (
-            <p className="text-muted">Loading cryptographic agent registration...</p>
-          )}
-        </section>
+            <div>
+              <span className="text-muted block">Spending Limit:</span>
+              <span className="text-ink font-semibold">
+                NGN {card.data?.spending_limits?.per_payment_cap?.toLocaleString() ?? '10,000'} / transaction
+              </span>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* 2. Consent Card (data-tour="tour-consent") */}
@@ -461,6 +494,38 @@ export function AgentPage() {
                       {msg.text}
                     </div>
 
+                    {/* Actionable Chips (Buttons) */}
+                    {msg.actions && msg.actions.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-line">
+                        {msg.actions.map((act) => (
+                          <button
+                            key={act.id}
+                            type="button"
+                            data-action-chip={act.kind}
+                            onClick={() => {
+                              if (act.kind === 'hire') {
+                                if (act.target) {
+                                  navigate(act.target)
+                                } else {
+                                  executeCommand(`hire provider ${act.payload?.provider_id || act.label}`)
+                                }
+                              } else if (act.kind === 'navigate' && act.target) {
+                                navigate(act.target)
+                              } else if (act.payload?.command) {
+                                executeCommand(String(act.payload.command))
+                              } else {
+                                executeCommand(act.label)
+                              }
+                            }}
+                            className="inline-flex items-center gap-1.5 rounded-full border border-structural bg-surface px-3 py-1.5 text-xs font-mono font-bold text-ink hover:bg-ink hover:text-page transition-colors shadow-xs"
+                          >
+                            <span>{act.label}</span>
+                            <ArrowRight size={12} />
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Used Tools Badges */}
                     {msg.used_tools && msg.used_tools.length > 0 && (
                       <div className="flex flex-wrap items-center gap-1 pt-1 border-t border-line">
@@ -473,28 +538,6 @@ export function AgentPage() {
                             {t}
                           </span>
                         ))}
-                      </div>
-                    )}
-
-                    {/* Quick navigation actions if query was plumber or scout */}
-                    {msg.text.toLowerCase().includes('plumber') && (
-                      <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-line">
-                        <button
-                          type="button"
-                          onClick={() => navigate('/services?q=plumber&max_price=20000')}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-structural bg-ink px-3 py-1 text-xs font-bold text-surface hover:opacity-90 shadow-xs"
-                        >
-                          <span>View on Services</span>
-                          <ArrowRight size={12} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => navigate('/map?filter=services')}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1 text-xs font-bold text-ink hover:bg-sunken shadow-xs"
-                        >
-                          <MapPin size={12} />
-                          <span>View on Map</span>
-                        </button>
                       </div>
                     )}
 
@@ -519,84 +562,66 @@ export function AgentPage() {
           </div>
         )}
 
-        <div ref={chatBottomRef} />
-      </div>
-
-      {/* 4. Persistent Bottom Input: mic on left, input, send on right */}
-      {/* Sticky bottom-16 lg:bottom-0 keeps it pinned right above mobile bottom nav */}
-      <div className="sticky bottom-16 lg:bottom-0 z-30 bg-surface/95 backdrop-blur-md border-t border-line py-2.5 px-1 sm:px-2">
-        {/* Live speech feedback pill if recording */}
-        {isListening && (
-          <div className="mb-2 flex items-center justify-between rounded-xl border border-structural bg-ink text-surface px-3 py-2 text-xs shadow-md">
-            <div className="flex items-center gap-2 min-w-0">
-              <span className="relative flex h-2.5 w-2.5 shrink-0">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent opacity-75" />
-                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-accent" />
-              </span>
-              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-accent shrink-0">
-                [RECORDING]
-              </span>
-              <span className="truncate italic">{speechInterim || 'Speak now...'}</span>
-            </div>
-            <button
-              type="button"
-              onClick={stopListening}
-              className="text-xs font-bold underline text-surface shrink-0 ml-2"
-            >
-              Stop
-            </button>
+        {/* Live speech interim while recording */}
+        {isListening && speechInterim && (
+          <div className="flex items-center gap-2 p-3 rounded-2xl border border-structural bg-sunken max-w-sm shadow-xs">
+            <Radio size={14} className="animate-ping text-accent shrink-0" />
+            <p className="text-xs text-ink font-mono italic">{speechInterim}</p>
           </div>
         )}
 
+        <div ref={chatBottomRef} />
+      </div>
+
+      {/* 4. Persistent Bottom Input */}
+      <div className="sticky bottom-16 lg:bottom-0 py-3 bg-page/95 backdrop-blur-xs border-t border-line shrink-0">
         <form
           onSubmit={(e) => {
             e.preventDefault()
-            executeCommand(inputCommand)
+            if (inputCommand.trim() && !runAgent.isPending) {
+              executeCommand(inputCommand)
+            }
           }}
           className="flex items-center gap-2"
         >
-          {/* Microphone button (data-tour="tour-mic") */}
+          {/* Mic Button on Left */}
           <button
-            data-tour="tour-mic"
             type="button"
+            data-tour="tour-mic"
             onClick={toggleMic}
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border transition-all ${
+            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-all shadow-xs ${
               isListening
-                ? 'border-accent bg-accent/20 text-accent ring-2 ring-accent/40 animate-pulse'
-                : 'border-line bg-surface text-ink hover:bg-sunken hover:border-structural'
+                ? 'border-accent bg-accent text-surface animate-pulse'
+                : 'border-line bg-surface text-ink hover:border-structural hover:bg-sunken'
             }`}
-            title={isListening ? 'Stop recording voice' : 'Tap to speak instruction'}
-            aria-label={isListening ? 'Stop recording voice' : 'Start recording voice'}
+            title={isListening ? 'Stop recording voice' : 'Start voice recognition'}
+            aria-label={isListening ? 'Stop recording voice' : 'Start voice recognition'}
           >
-            {isListening ? (
-              <Radio size={18} className="text-accent animate-pulse" />
-            ) : (
-              <Mic size={18} />
-            )}
+            {isListening ? <MicOff size={18} /> : <Mic size={18} />}
           </button>
 
-          {/* Text Input */}
+          {/* Text Input Center */}
           <input
             type="text"
             value={inputCommand}
             onChange={(e) => setInputCommand(e.target.value)}
-            disabled={runAgent.isPending}
-            placeholder={isListening ? 'Transcribing your voice...' : 'Ask proxidAI anything...'}
-            className="flex-1 rounded-xl border border-line bg-surface px-3.5 py-2.5 text-xs sm:text-sm text-ink placeholder:text-muted focus:border-structural focus:outline-none focus:ring-1 focus:ring-structural shadow-xs transition-colors"
+            placeholder={isListening ? 'Listening to voice...' : 'Ask proxidAI to find, hire or check anything...'}
+            disabled={runAgent.isPending || isListening}
+            className="flex-1 h-11 rounded-xl border border-line bg-surface px-3.5 text-xs sm:text-sm text-ink placeholder-muted focus:border-structural focus:outline-none shadow-xs disabled:opacity-50"
           />
 
-          {/* Send Button */}
+          {/* Send Button on Right */}
           <button
             type="submit"
-            disabled={!inputCommand.trim() || runAgent.isPending}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-structural bg-ink text-surface disabled:opacity-40 hover:opacity-90 active:scale-95 transition-all shadow-xs"
-            title="Send instruction"
-            aria-label="Send instruction to proxidAI"
+            disabled={!inputCommand.trim() || runAgent.isPending || isListening}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-structural bg-ink text-surface hover:opacity-90 transition-all disabled:opacity-40 shadow-xs"
+            title="Send command"
+            aria-label="Send command"
           >
             {runAgent.isPending ? (
               <Loader2 size={16} className="animate-spin text-surface" />
             ) : (
-              <ArrowUp size={18} />
+              <Send size={16} />
             )}
           </button>
         </form>
