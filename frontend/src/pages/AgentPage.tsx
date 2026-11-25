@@ -23,6 +23,7 @@ import {
   ArrowRight,
   ArrowUp,
   BadgeCheck,
+  Bell,
   Bot,
   CheckCircle2,
   ChevronDown,
@@ -45,6 +46,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
+import { Button } from '@/components/ui/button'
 import { useAuth } from '@/hooks/useAuth'
 import {
   useAgentActivity,
@@ -54,6 +56,7 @@ import {
   useAgentTools,
   useRunAgent,
 } from '@/hooks/useAgent'
+import { subscribeToPushNotifications } from '@/lib/push'
 import { useLocationStore } from '@/store/locationStore'
 import type { AgentAction, AgentStep } from '@/types/api'
 
@@ -81,7 +84,9 @@ export function AgentPage() {
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialCommand = searchParams.get('command')
+  const initialListen = searchParams.get('listen')
   const handledInitialRef = useRef(false)
+  const handledListenRef = useRef(false)
 
   const { isSignedIn, user } = useAuth()
   const tools = useAgentTools()
@@ -97,6 +102,9 @@ export function AgentPage() {
   const [speechInterim, setSpeechInterim] = useState('')
   const [workingStatus, setWorkingStatus] = useState<string | null>(null)
   const [showCardDetails, setShowCardDetails] = useState(false)
+  const [showPushPrompt, setShowPushPrompt] = useState(false)
+  const [pushPromptBusy, setPushPromptBusy] = useState(false)
+  const [pushPromptSuccess, setPushPromptSuccess] = useState(false)
 
   const recognitionRef = useRef<any>(null)
   const chatBottomRef = useRef<HTMLDivElement | null>(null)
@@ -208,6 +216,106 @@ export function AgentPage() {
     [runAgent, setCoordinates, stopListening],
   )
 
+  // Check notification permission on mount for in-context push prompt
+  useEffect(() => {
+    if (typeof window === 'undefined' || !('Notification' in window)) return
+    if (Notification.permission === 'default') {
+      const dismissed = localStorage.getItem('proxid_agent_push_prompt_dismissed')
+      if (!dismissed) {
+        setShowPushPrompt(true)
+      }
+    }
+  }, [])
+
+  const handleEnableNotifications = async () => {
+    setPushPromptBusy(true)
+    try {
+      const ok = await subscribeToPushNotifications()
+      if (ok) {
+        setPushPromptSuccess(true)
+        setTimeout(() => {
+          setShowPushPrompt(false)
+        }, 2000)
+      } else {
+        setShowPushPrompt(false)
+      }
+    } finally {
+      setPushPromptBusy(false)
+    }
+  }
+
+  const handleDismissPushPrompt = () => {
+    localStorage.setItem('proxid_agent_push_prompt_dismissed', '1')
+    setShowPushPrompt(false)
+  }
+
+  // Start speech recognition
+  const startListening = useCallback(() => {
+    setIsListening(true)
+    setSpeechInterim('Listening...')
+
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      setSpeechInterim('Listening (microphone active)...')
+      return
+    }
+
+    const SpeechRecognitionClass =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    try {
+      const recognition = new SpeechRecognitionClass()
+      recognition.continuous = false
+      recognition.interimResults = true
+      recognition.lang = 'en-US'
+
+      recognition.onstart = () => {
+        setIsListening(true)
+        setSpeechInterim('Listening...')
+      }
+
+      recognition.onresult = (event: any) => {
+        let finalSpeech = ''
+        let interimSpeech = ''
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            finalSpeech += event.results[i][0].transcript
+          } else {
+            interimSpeech += event.results[i][0].transcript
+          }
+        }
+
+        const activeText = (finalSpeech || interimSpeech).trim()
+        if (activeText) {
+          setSpeechInterim(activeText)
+        }
+
+        if (finalSpeech.trim()) {
+          const spoken = finalSpeech.trim()
+          stopListening()
+          executeCommand(spoken)
+        }
+      }
+
+      recognition.onerror = () => {
+        stopListening()
+      }
+
+      recognition.onend = () => {
+        setIsListening(false)
+        if (speechInterim.trim() && speechInterim !== 'Listening...') {
+          const spoken = speechInterim.trim()
+          setSpeechInterim('')
+          executeCommand(spoken)
+        }
+      }
+
+      recognitionRef.current = recognition
+      recognition.start()
+    } catch {
+      setIsListening(true)
+      setSpeechInterim('Listening...')
+    }
+  }, [executeCommand, speechInterim, stopListening])
+
   // Handle URL command param on mount
   useEffect(() => {
     if (initialCommand && initialCommand.trim() && !handledInitialRef.current) {
@@ -219,64 +327,15 @@ export function AgentPage() {
     }
   }, [initialCommand, searchParams, setSearchParams, executeCommand])
 
-  // Start speech recognition
-  const startListening = useCallback(() => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Voice recognition is not supported in this browser. Please type your message.')
-      return
+  // Handle ?listen=1 URL param on mount (PWA shortcut)
+  useEffect(() => {
+    if (initialListen === '1' && !handledListenRef.current) {
+      handledListenRef.current = true
+      searchParams.delete('listen')
+      setSearchParams(searchParams, { replace: true })
+      startListening()
     }
-
-    const SpeechRecognitionClass =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    const recognition = new SpeechRecognitionClass()
-    recognition.continuous = false
-    recognition.interimResults = true
-    recognition.lang = 'en-US'
-
-    recognition.onstart = () => {
-      setIsListening(true)
-      setSpeechInterim('Listening...')
-    }
-
-    recognition.onresult = (event: any) => {
-      let finalSpeech = ''
-      let interimSpeech = ''
-      for (let i = event.resultIndex; i < event.results.length; ++i) {
-        if (event.results[i].isFinal) {
-          finalSpeech += event.results[i][0].transcript
-        } else {
-          interimSpeech += event.results[i][0].transcript
-        }
-      }
-
-      const activeText = (finalSpeech || interimSpeech).trim()
-      if (activeText) {
-        setSpeechInterim(activeText)
-      }
-
-      if (finalSpeech.trim()) {
-        const spoken = finalSpeech.trim()
-        stopListening()
-        executeCommand(spoken)
-      }
-    }
-
-    recognition.onerror = () => {
-      stopListening()
-    }
-
-    recognition.onend = () => {
-      setIsListening(false)
-      if (speechInterim.trim() && speechInterim !== 'Listening...') {
-        const spoken = speechInterim.trim()
-        setSpeechInterim('')
-        executeCommand(spoken)
-      }
-    }
-
-    recognitionRef.current = recognition
-    recognition.start()
-  }, [executeCommand, speechInterim, stopListening])
+  }, [initialListen, searchParams, setSearchParams, startListening])
 
   const toggleMic = () => {
     if (isListening) {
@@ -366,6 +425,54 @@ export function AgentPage() {
                 NGN {card.data?.spending_limits?.per_payment_cap?.toLocaleString() ?? '10,000'} / transaction
               </span>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-Context Push Notification Prompt (First visit / relevant context) */}
+      {showPushPrompt && (
+        <div className="my-2 rounded-2xl border border-structural bg-surface p-3.5 shadow-xs transition-all">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5 min-w-0">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sunken text-ink">
+                <Bell size={16} />
+              </div>
+              <div>
+                <p className="text-xs font-bold text-ink">
+                  proxidAI can tell you when work matches you. Turn on notifications?
+                </p>
+                <p className="text-[11px] text-muted mt-0.5">
+                  Get alerts for nearby matches even when the app is closed. No spam.
+                </p>
+              </div>
+            </div>
+            {pushPromptSuccess ? (
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-ink bg-sunken px-3 py-1.5 rounded-lg border border-line">
+                <CheckCircle2 size={14} className="text-accent" />
+                <span>Notifications turned on!</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  intent="primary"
+                  loading={pushPromptBusy}
+                  loadingText="Enabling..."
+                  disabled={pushPromptBusy}
+                  onClick={() => void handleEnableNotifications()}
+                >
+                  Enable
+                </Button>
+                <Button
+                  size="sm"
+                  intent="ghost"
+                  disabled={pushPromptBusy}
+                  onClick={handleDismissPushPrompt}
+                >
+                  Not later
+                </Button>
+              </div>
+            )}
           </div>
         </div>
       )}

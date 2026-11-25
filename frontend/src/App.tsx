@@ -6,6 +6,7 @@
 import { useEffect } from 'react'
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Header } from '@/components/Header'
 import { ImageLightboxModal } from '@/components/ImageLightboxModal'
 import { Navigation } from '@/components/Navigation'
@@ -54,22 +55,24 @@ export function App() {
       <VoiceAssistant />
       <ImageLightboxModal />
       <main className="flex-1 lg:pl-24 pb-20 lg:pb-0">
-        <Routes>
-          <Route path="/" element={<LandingPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/register" element={<RegisterPage />} />
-          <Route path="/jobs" element={<JobsPage />} />
-          <Route path="/jobs/:jobId" element={<JobDetailPage />} />
-          <Route path="/jobs/:jobId/room" element={<JobRoomPage />} />
-          <Route path="/map" element={<MapPage />} />
-          <Route path="/services" element={<ServicesPage />} />
-          <Route path="/services/:serviceId" element={<ServiceDetailPage />} />
-          <Route path="/u/:username" element={<PublicProfilePage />} />
-          <Route path="/providers" element={<Navigate to="/services" replace />} />
-          <Route path="/agent" element={<AgentPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <ErrorBoundary resetKey={location.pathname}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+            <Route path="/jobs" element={<JobsPage />} />
+            <Route path="/jobs/:jobId" element={<JobDetailPage />} />
+            <Route path="/jobs/:jobId/room" element={<JobRoomPage />} />
+            <Route path="/map" element={<MapPage />} />
+            <Route path="/services" element={<ServicesPage />} />
+            <Route path="/services/:serviceId" element={<ServiceDetailPage />} />
+            <Route path="/u/:username" element={<PublicProfilePage />} />
+            <Route path="/providers" element={<Navigate to="/services" replace />} />
+            <Route path="/agent" element={<AgentPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </ErrorBoundary>
       </main>
       {!isLanding && (
         <footer className="border-t border-line px-4 py-6 lg:pl-28 mb-16 lg:mb-0">

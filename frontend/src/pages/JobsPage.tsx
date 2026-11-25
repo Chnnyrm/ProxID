@@ -8,8 +8,8 @@
  */
 
 import { Briefcase, Clock, Filter, Map as MapIcon, MapPin, Plus, Search, SlidersHorizontal, X } from 'lucide-react'
-import { useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
@@ -31,12 +31,22 @@ type SortOrder = 'newest' | 'price_high' | 'price_low'
 
 export function JobsPage() {
   const { isSignedIn } = useAuth()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [tab, setTab] = useState<Tab>('nearby')
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [sortOrder, setSortOrder] = useState<SortOrder>('newest')
   const [showForm, setShowForm] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+
+  // Auto-open compose form if navigating with ?compose=1 (PWA shortcut)
+  useEffect(() => {
+    if (searchParams.get('compose') === '1') {
+      setShowForm(true)
+      searchParams.delete('compose')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const coordinates = useLocationStore((state) => state.coordinates)
   const radiusKm = useLocationStore((state) => state.radiusKm)

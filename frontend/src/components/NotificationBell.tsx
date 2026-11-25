@@ -4,7 +4,7 @@
  */
 
 import { useState } from 'react'
-import { Bell, Check, ExternalLink, Send, ShieldCheck, Sparkles, X } from 'lucide-react'
+import { AlertCircle, Bell, Check, ExternalLink, Send, ShieldCheck, Sparkles, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 import {
@@ -91,28 +91,45 @@ export function NotificationBell() {
           </div>
 
           {/* Web Push Status Bar */}
-          <div className="rounded-xl border border-line bg-sunken/40 p-2.5 flex items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2">
-              <span
-                className={`h-2 w-2 rounded-full ${
-                  pushStatus.data?.subscribed ? 'bg-accent' : 'bg-muted'
-                }`}
-              />
-              <span className="text-[11px] font-mono text-ink">
-                Web Push: {pushStatus.data?.subscribed ? 'Enabled' : 'Disabled'}
-              </span>
+          {typeof window !== 'undefined' &&
+          'Notification' in window &&
+          Notification.permission === 'denied' ? (
+            <div className="rounded-xl border border-structural bg-sunken/60 p-2.5 space-y-1 text-xs">
+              <div className="flex items-center gap-2">
+                <AlertCircle size={14} className="text-accent shrink-0" />
+                <span className="font-mono text-[11px] font-bold text-ink">
+                  Web Push: Blocked by Browser
+                </span>
+              </div>
+              <p className="text-[11px] text-muted leading-relaxed">
+                Notifications are blocked in your browser settings. To re-enable alerts, click the
+                lock or site settings icon next to the URL and change Notifications to "Allow".
+              </p>
             </div>
-            {!pushStatus.data?.subscribed && (
-              <button
-                type="button"
-                onClick={handleSubscribe}
-                disabled={subscribing}
-                className="rounded-lg border border-structural bg-ink px-2.5 py-1 text-[10px] font-bold text-page hover:opacity-90 transition-opacity"
-              >
-                {subscribing ? 'Enabling...' : 'Enable Push'}
-              </button>
-            )}
-          </div>
+          ) : (
+            <div className="rounded-xl border border-line bg-sunken/40 p-2.5 flex items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    pushStatus.data?.subscribed ? 'bg-accent' : 'bg-muted'
+                  }`}
+                />
+                <span className="text-[11px] font-mono text-ink">
+                  Web Push: {pushStatus.data?.subscribed ? 'Enabled' : 'Disabled'}
+                </span>
+              </div>
+              {!pushStatus.data?.subscribed && (
+                <button
+                  type="button"
+                  onClick={handleSubscribe}
+                  disabled={subscribing}
+                  className="rounded-lg border border-structural bg-ink px-2.5 py-1 text-[10px] font-bold text-page hover:opacity-90 transition-opacity"
+                >
+                  {subscribing ? 'Enabling...' : 'Enable Push'}
+                </button>
+              )}
+            </div>
+          )}
 
           {/* Test Action Trigger */}
           <div className="flex items-center justify-between pt-1">

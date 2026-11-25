@@ -1,0 +1,78 @@
+{
+  "name": "ProxID",
+  "short_name": "ProxID",
+  "description": "Verified local work, nearby on Concordium",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F0E5DB",
+  "theme_color": "#F0E5DB",
+  "lang": "en",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "/pwa-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Ask proxidAI",
+      "short_name": "Ask proxidAI",
+      "description": "Talk to proxidAI to find services or manage jobs",
+      "url": "/agent?listen=1",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Find services",
+      "short_name": "Find services",
+      "description": "Browse verified services nearby",
+      "url": "/services",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    },
+    {
+      "name": "Post a job",
+      "short_name": "Post a job",
+      "description": "Post a new job request for nearby providers",
+      "url": "/jobs?compose=1",
+      "icons": [
+        {
+          "src": "/pwa-192x192.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }
+  ]
+}
