@@ -313,9 +313,58 @@ def _check_ascii(path: Path, text: str) -> list[Violation]:
     return violations
 
 
+
+def _check_requirements_parity() -> list[Violation]:
+    """The root requirements.txt must list the same packages as the backend one.
+
+    Vercel installs the Python function from the root file and cannot follow an
+    include. The two files are therefore a copy, which is a trap: a dependency added
+    to only one of them is invisible locally and fatal in the deployment. That is
+    exactly what took production down with "No module named 'pywebpush'". This check
+    makes the divergence a build failure instead of an outage.
+    """
+    root_file = APP_ROOT.parent.parent / "requirements.txt"
+    backend_file = APP_ROOT.parent / "requirements.txt"
+    if not root_file.exists() or not backend_file.exists():
+        return []
+
+    def packages(path: pathlib.Path) -> set[str]:
+        names: set[str] = set()
+        for raw in path.read_text(encoding="utf-8").splitlines():
+            line = raw.strip()
+            if not line or line.startswith("#") or line.startswith("-"):
+                continue
+            name = line.split("==")[0].split("[")[0].split(">")[0].split("<")[0]
+            names.add(name.strip().lower())
+        return names
+
+    root_pkgs, backend_pkgs = packages(root_file), packages(backend_file)
+    violations: list[Violation] = []
+    for missing in sorted(backend_pkgs - root_pkgs):
+        violations.append(
+            Violation(
+                "requirements.txt",
+                0,
+                "requirements-diverged",
+                f"'{missing}' is in backend/requirements.txt but not in the root file "
+                "Vercel installs; the deployed function will fail to import it",
+            )
+        )
+    for extra in sorted(root_pkgs - backend_pkgs):
+        violations.append(
+            Violation(
+                "requirements.txt",
+                0,
+                "requirements-diverged",
+                f"'{extra}' is in the root requirements.txt but not in "
+                "backend/requirements.txt; the local environment will not match production",
+            )
+        )
+    return violations
+
 def check_backend() -> list[Violation]:
     """Every backend rule, over every Python file under app/."""
-    violations: list[Violation] = []
+    violations: list[Violation] = _check_requirements_parity()
     for path in sorted(APP_ROOT.rglob("*.py")):
         if path.name in BANNED_FILENAMES:
             violations.append(

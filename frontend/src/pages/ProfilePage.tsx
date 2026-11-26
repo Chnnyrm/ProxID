@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   Clock,
   Edit2,
+  ExternalLink,
   Image as ImageIcon,
   LogOut,
   MapPin,
@@ -243,7 +244,7 @@ export function ProfilePage() {
                   intent="ghost"
                   size="sm"
                   loading={isLoggingOut}
-                  loadingLabel="Signing out..."
+                  loadingText="Signing out..."
                   disabled={isLoggingOut}
                   onClick={() => void handleLogout()}
                 >
@@ -311,7 +312,7 @@ export function ProfilePage() {
                       intent="secondary"
                       size="sm"
                       loading={isUploadingAvatar}
-                      loadingLabel="Uploading..."
+                      loadingText="Uploading..."
                       onClick={() => fileInputRef.current?.click()}
                     >
                       <Upload size={12} className="mr-1" />
@@ -375,7 +376,7 @@ export function ProfilePage() {
                 <Button type="button" intent="secondary" onClick={cancelEdit} disabled={isSaving}>
                   Cancel
                 </Button>
-                <Button type="submit" loading={isSaving} loadingLabel="Saving...">
+                <Button type="submit" loading={isSaving} loadingText="Saving...">
                   <Check size={14} className="mr-1" />
                   Save changes
                 </Button>
@@ -414,7 +415,7 @@ export function ProfilePage() {
             <Button
               onClick={() => request.mutate(purpose)}
               loading={request.isPending}
-              loadingLabel="Generating nonce..."
+              loadingText="Generating nonce..."
               disabled={request.isPending}
             >
               <QrCode size={14} className="mr-1" aria-hidden="true" />
@@ -426,7 +427,7 @@ export function ProfilePage() {
                 intent="secondary"
                 onClick={() => approve.mutate(attempt.nonce as string)}
                 loading={approve.isPending}
-                loadingLabel="Verifying proof..."
+                loadingText="Verifying proof..."
                 disabled={approve.isPending}
               >
                 <CheckCircle2 size={14} className="mr-1" aria-hidden="true" />

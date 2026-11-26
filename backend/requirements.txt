@@ -23,3 +23,6 @@ httpx==0.28.1
 
 # Media and email sdks
 cloudinary==1.41.0
+# Web Push. Imported by app/crud/notification.py; declaration was missing, which
+# made every endpoint fail to import in the deployment with ModuleNotFoundError.
+pywebpush==2.3.0
