@@ -19,7 +19,7 @@ function tcp() {
       socket.destroy()
       resolve({ ok, ms: Date.now() - started, detail })
     }
-    socket.setTimeout(10000, () => done(false, 'timeout after 10s'))
+    socket.setTimeout(3000, () => done(false, 'timeout after 3s'))
     socket.on('connect', () => done(true, 'tcp connected'))
     socket.on('error', (err) => done(false, `${err.code || err.name}: ${err.message}`))
   })
@@ -33,7 +33,7 @@ function handshake() {
       socket.destroy()
       resolve({ ok, ms: Date.now() - started, detail })
     }
-    socket.setTimeout(15000, () => done(false, 'tls timeout after 15s'))
+    socket.setTimeout(3000, () => done(false, 'tls timeout after 3s'))
     socket.on('secureConnect', () => {
       const cert = socket.getPeerCertificate()
       done(true, `tls ok, subject ${cert.subject?.CN || 'unknown'}`)
