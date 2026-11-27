@@ -11,7 +11,7 @@
  */
 
 import { Check, Plus, Tag, X } from 'lucide-react'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories, useCreateCategory } from '@/hooks/useProviders'
@@ -41,11 +41,20 @@ export function CategorySelect({
   const fetchedCategories = useCategories()
   const createCategoryMutation = useCreateCategory()
 
-  const categories = propCategories || fetchedCategories.data || []
-
+  const [localCategories, setLocalCategories] = useState<Array<{ id: string; name: string }>>([])
   const [isCreating, setIsCreating] = useState(false)
   const [newCatName, setNewCatName] = useState('')
   const [error, setError] = useState<string | null>(null)
+
+  const allCategories = useMemo(() => {
+    const list = [...(propCategories || fetchedCategories.data || [])]
+    for (const local of localCategories) {
+      if (!list.some((c) => c.id === local.id)) {
+        list.push(local)
+      }
+    }
+    return list
+  }, [propCategories, fetchedCategories.data, localCategories])
 
   const handleStartCreate = () => {
     if (!isSignedIn) {
@@ -71,7 +80,7 @@ export function CategorySelect({
     }
 
     // Client-side case-insensitive duplicate check
-    const existing = categories.find(
+    const existing = allCategories.find(
       (c) => c.name.trim().toLowerCase() === clean.toLowerCase()
     )
     if (existing) {
@@ -83,9 +92,9 @@ export function CategorySelect({
 
     try {
       const res = await createCategoryMutation.mutateAsync({ name: clean })
-      const newId = res?.id ?? (res as unknown as { data?: { id?: string } })?.data?.id
-      if (newId) {
-        onChange(newId)
+      if (res?.id) {
+        setLocalCategories((prev) => [...prev, { id: res.id, name: res.name }])
+        onChange(res.id)
       }
       setIsCreating(false)
       setNewCatName('')
@@ -131,7 +140,7 @@ export function CategorySelect({
           className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-xs sm:text-sm text-ink focus:outline-none focus:ring-1 focus:ring-structural"
         >
           <option value="">{placeholder}</option>
-          {categories.map((c) => (
+          {allCategories.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
             </option>
