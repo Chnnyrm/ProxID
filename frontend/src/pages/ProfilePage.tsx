@@ -77,9 +77,10 @@ export function ProfilePage() {
   const verificationState = useMemo<
     'not started' | 'opening' | 'awaiting wallet' | 'proof received' | 'verified' | 'refused' | 'cancelled' | 'expired'
   >(() => {
-    if (user?.concordium_verified) return 'verified'
     if (uiStateOverride === 'opening' || request.isPending) return 'opening'
     if (uiStateOverride === 'proof received' || approve.isPending) return 'proof received'
+    if (uiStateOverride === 'awaiting wallet') return 'awaiting wallet'
+    if (user?.concordium_verified) return 'verified'
 
     const latestAttempt = request.data ?? verification.data
     if (!latestAttempt) return 'not started'
@@ -88,11 +89,11 @@ export function ProfilePage() {
     if (latestAttempt.status === 'refused') return 'refused'
     if (latestAttempt.status === 'cancelled') return 'cancelled'
     if (new Date(latestAttempt.expires_at).getTime() < Date.now()) return 'expired'
-    if (latestAttempt.status === 'pending' || uiStateOverride === 'awaiting wallet') return 'awaiting wallet'
+    if (latestAttempt.status === 'pending') return 'awaiting wallet'
     return 'not started'
   }, [
-    user?.concordium_verified,
     uiStateOverride,
+    user?.concordium_verified,
     request.isPending,
     approve.isPending,
     request.data,
@@ -628,14 +629,14 @@ export function ProfilePage() {
           </div>
 
           {/* Mobile vs Desktop Presentation When Awaiting Wallet */}
-          {verificationState === 'awaiting wallet' && request.data ? (
+          {verificationState === 'awaiting wallet' && (request.data || verification.data) ? (
             <div className="rounded-xl border border-line bg-surface p-4 text-xs space-y-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
                 <div className="flex items-center gap-1.5">
-                  <Badge tone="quiet">{request.data.purpose}</Badge>
-                  <Badge tone="neutral">{request.data.status}</Badge>
+                  <Badge tone="quiet">{(request.data ?? verification.data)?.purpose}</Badge>
+                  <Badge tone="neutral">{(request.data ?? verification.data)?.status}</Badge>
                 </div>
-                <span className="text-muted font-mono">nonce: {request.data.nonce.slice(0, 8)}...</span>
+                <span className="text-muted font-mono">nonce: {(request.data ?? verification.data)?.nonce.slice(0, 8)}...</span>
               </div>
 
               {/* Desktop QR Display */}
