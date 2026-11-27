@@ -177,7 +177,9 @@ def process_image(data: bytes, *, max_bytes: int = MAX_UPLOAD_BYTES) -> Processe
     )
 
 
-def build_derivatives(base_url: str, width: int, height: int) -> dict[str, dict[str, Any]]:
+def build_derivatives(
+    base_url: str, width: int, height: int, eager_map: dict[int, str] | None = None
+) -> dict[str, dict[str, Any]]:
     """Build the fixed set of derivatives: thumb 320px, card 800px, hero 1600px."""
     aspect = height / width if width > 0 else 1.0
 
@@ -190,7 +192,9 @@ def build_derivatives(base_url: str, width: int, height: int) -> dict[str, dict[
     result: dict[str, dict[str, Any]] = {}
     for name, target_w in specs.items():
         scaled_h = max(1, round(target_w * aspect))
-        if "/image/upload/" in base_url:
+        if eager_map and target_w in eager_map:
+            deriv_url = eager_map[target_w]
+        elif "/image/upload/" in base_url:
             deriv_url = base_url.replace(
                 "/image/upload/", f"/image/upload/c_limit,w_{target_w}/", 1
             )

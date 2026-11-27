@@ -64,7 +64,16 @@ async def upload_asset(
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
 
-    raw_derivatives = build_derivatives(result["secure_url"], processed.width, processed.height)
+    raw_eager = result.get("eager") or []
+    eager_map = {
+        item.get("width"): item.get("secure_url")
+        for item in raw_eager
+        if isinstance(item, dict) and item.get("width") and item.get("secure_url")
+    }
+
+    raw_derivatives = build_derivatives(
+        result["secure_url"], processed.width, processed.height, eager_map=eager_map
+    )
     derivatives_out = {
         name: DerivativeOut(
             url=d["url"],

@@ -106,6 +106,11 @@ class CloudinaryClient:
                 public_id=resolved_id,
                 overwrite=False,
                 resource_type="image",
+                eager=[
+                    {"width": 320, "crop": "limit"},
+                    {"width": 800, "crop": "limit"},
+                    {"width": 1600, "crop": "limit"},
+                ],
             )
 
         try:
