@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..models.category import Category
@@ -30,6 +30,16 @@ async def get_by_slug(db: AsyncSession, slug: str) -> Category | None:
     return result.scalar_one_or_none()
 
 
+async def get_by_name(db: AsyncSession, name: str) -> Category | None:
+    """One category by its name, case-insensitively."""
+    if not name or not name.strip():
+        return None
+    result = await db.execute(
+        select(Category).where(func.lower(Category.name) == name.strip().lower())
+    )
+    return result.scalar_one_or_none()
+
+
 async def names_by_ids(
     db: AsyncSession, category_ids: list[uuid.UUID]
 ) -> dict[uuid.UUID, str]:
@@ -45,10 +55,20 @@ async def names_by_ids(
 
 
 async def create(
-    db: AsyncSession, *, name: str, slug: str, description: str | None = None
+    db: AsyncSession,
+    *,
+    name: str,
+    slug: str,
+    description: str | None = None,
+    created_by_id: uuid.UUID | None = None,
 ) -> Category:
     """Insert one category and flush."""
-    category = Category(name=name.strip(), slug=slug.strip().lower(), description=description)
+    category = Category(
+        name=name.strip(),
+        slug=slug.strip().lower(),
+        description=description,
+        created_by_id=created_by_id,
+    )
     db.add(category)
     await db.flush()
     return category

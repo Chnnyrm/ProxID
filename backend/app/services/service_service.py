@@ -42,6 +42,9 @@ def to_service_out(
     here.
     """
     latitude, longitude = extract_coordinates(listing.location)
+    listing_urls = getattr(listing, "image_urls", None)
+    urls = list(listing_urls) if listing_urls else ([listing.image_url] if listing.image_url else [])
+    cover = listing.image_url or (urls[0] if urls else None)
     return ServiceOut(
         id=listing.id,
         provider_id=listing.provider_id,
@@ -56,7 +59,8 @@ def to_service_out(
         latitude=latitude,
         longitude=longitude,
         radius_km=float(listing.radius_km),
-        image_url=listing.image_url,
+        image_url=cover,
+        image_urls=urls,
         is_active=listing.is_active,
         distance_km=round(distance_metres / 1000.0, 2) if distance_metres is not None else None,
         provider_display_name=provider.display_name if provider else None,
@@ -98,6 +102,8 @@ class ServiceListingService:
                     external_message="Pick a category from the list. That one no longer exists.",
                 )
         effective_price = payload.price if payload.price is not None else (payload.min_price or 0.0)
+        urls = list(payload.image_urls) if payload.image_urls else ([payload.image_url] if payload.image_url else [])
+        cover = payload.image_url or (urls[0] if urls else None)
         listing = await service_crud.create(
             db,
             provider_id=actor.id,
@@ -110,7 +116,8 @@ class ServiceListingService:
             latitude=payload.latitude,
             longitude=payload.longitude,
             radius_km=payload.radius_km or DEFAULT_RADIUS_KM,
-            image_url=payload.image_url,
+            image_url=cover,
+            image_urls=urls,
         )
         category_names = await category_crud.names_by_ids(
             db, [payload.category_id] if payload.category_id else []

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Index, String, Text
+import uuid
+
+from sqlalchemy import ForeignKey, Index, String, Text
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from ..core.database import Base
@@ -21,5 +24,8 @@ class Category(Base, UuidPrimaryKeyMixin, TimestampMixin):
     name: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
     slug: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
 
     __table_args__ = (Index("ix_categories_name_lower", name),)

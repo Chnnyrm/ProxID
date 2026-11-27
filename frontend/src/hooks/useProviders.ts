@@ -55,6 +55,18 @@ export function useCategories() {
   })
 }
 
+/** Create a new marketplace category and refresh the category list. */
+export function useCreateCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, description }: { name: string; description?: string }) =>
+      providerService.createCategory(name, description),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: providerKeys.categories })
+    },
+  })
+}
+
 /** The map's tile template, from configuration rather than a component literal. */
 export function useMapConfig() {
   return useQuery({

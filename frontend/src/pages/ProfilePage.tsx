@@ -30,6 +30,8 @@ import QRCode from 'qrcode'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { HouseIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { ProfileActionPanel } from '@/components/ProfileActionPanel'
+import { ProfileToursCard } from '@/components/ProfileToursCard'
 import { SafeImage } from '@/components/SafeImage'
 import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
@@ -75,9 +77,10 @@ export function ProfilePage() {
   const verificationState = useMemo<
     'not started' | 'opening' | 'awaiting wallet' | 'proof received' | 'verified' | 'refused' | 'cancelled' | 'expired'
   >(() => {
-    if (user?.concordium_verified) return 'verified'
     if (uiStateOverride === 'opening' || request.isPending) return 'opening'
     if (uiStateOverride === 'proof received' || approve.isPending) return 'proof received'
+    if (uiStateOverride === 'awaiting wallet') return 'awaiting wallet'
+    if (user?.concordium_verified) return 'verified'
 
     const latestAttempt = request.data ?? verification.data
     if (!latestAttempt) return 'not started'
@@ -86,11 +89,11 @@ export function ProfilePage() {
     if (latestAttempt.status === 'refused') return 'refused'
     if (latestAttempt.status === 'cancelled') return 'cancelled'
     if (new Date(latestAttempt.expires_at).getTime() < Date.now()) return 'expired'
-    if (latestAttempt.status === 'pending' || uiStateOverride === 'awaiting wallet') return 'awaiting wallet'
+    if (latestAttempt.status === 'pending') return 'awaiting wallet'
     return 'not started'
   }, [
-    user?.concordium_verified,
     uiStateOverride,
+    user?.concordium_verified,
     request.isPending,
     approve.isPending,
     request.data,
@@ -126,6 +129,39 @@ export function ProfilePage() {
       const msg = err instanceof Error ? err.message : String(err)
       setVerificationError(`Verification initialization failed: ${msg}`)
     }
+  }
+
+  const handleApproveVerification = () => {
+    const nonce = request.data?.nonce ?? verification.data?.nonce
+    if (nonce) {
+      setUiStateOverride('proof received')
+      approve.mutate(
+        {
+          nonce,
+          status: 'approved',
+          proof_reference: 'concordium-zkp-attestation',
+        },
+        {
+          onError: (err) => {
+            setUiStateOverride(null)
+            const msg = err instanceof Error ? err.message : String(err)
+            setVerificationError(`Verification approval failed: ${msg}`)
+          },
+        },
+      )
+    }
+  }
+
+  const handleCancelVerification = () => {
+    const nonce = request.data?.nonce ?? verification.data?.nonce
+    if (nonce) {
+      approve.mutate({
+        nonce,
+        status: 'cancelled',
+        reason: 'User cancelled verification',
+      })
+    }
+    setUiStateOverride(null)
   }
 
   const handleApproveVerification = () => {
@@ -335,12 +371,6 @@ export function ProfilePage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-                <Link to="/services?compose=1">
-                  <Button intent="primary" size="sm">
-                    <Plus size={13} className="mr-1" aria-hidden="true" />
-                    Offer a Service
-                  </Button>
-                </Link>
                 <Button
                   intent="secondary"
                   size="sm"
@@ -496,6 +526,9 @@ export function ProfilePage() {
         </CardBody>
       </Card>
 
+      {/* Illustrated Commerce Action Panel */}
+      <ProfileActionPanel />
+
       {/* Concordium Zero-Knowledge Verification Section */}
       <Card>
         <div className="p-4 sm:p-6 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -629,14 +662,14 @@ export function ProfilePage() {
           </div>
 
           {/* Mobile vs Desktop Presentation When Awaiting Wallet */}
-          {verificationState === 'awaiting wallet' && request.data ? (
+          {verificationState === 'awaiting wallet' && (request.data || verification.data) ? (
             <div className="rounded-xl border border-line bg-surface p-4 text-xs space-y-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
                 <div className="flex items-center gap-1.5">
-                  <Badge tone="quiet">{request.data.purpose}</Badge>
-                  <Badge tone="neutral">{request.data.status}</Badge>
+                  <Badge tone="quiet">{(request.data ?? verification.data)?.purpose}</Badge>
+                  <Badge tone="neutral">{(request.data ?? verification.data)?.status}</Badge>
                 </div>
-                <span className="text-muted font-mono">nonce: {request.data.nonce.slice(0, 8)}...</span>
+                <span className="text-muted font-mono">nonce: {(request.data ?? verification.data)?.nonce.slice(0, 8)}...</span>
               </div>
 
               {/* Desktop QR Display */}
@@ -763,6 +796,9 @@ export function ProfilePage() {
           </p>
         </CardBody>
       </Card>
+
+      {/* Replayable Product Tours */}
+      <ProfileToursCard />
 
       {/* Your Jobs History Section */}
       <Card>

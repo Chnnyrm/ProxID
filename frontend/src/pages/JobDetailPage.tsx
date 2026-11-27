@@ -33,6 +33,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
+import { HeroGallery } from '@/components/HeroGallery'
 import { HouseIllustration } from '@/components/illustrations/CartoonIllustrations'
 import { SafeImage } from '@/components/SafeImage'
 import { VerifiedBadge } from '@/components/VerifiedBadge'
@@ -95,6 +96,10 @@ export function JobDetailPage() {
     )
   }
 
+  const jobImages = (job.image_urls && job.image_urls.length > 0)
+    ? job.image_urls
+    : (job.image_url ? [job.image_url] : [])
+
   const appliedIds = appliedQuery.data || []
   const isApplied = Boolean(job.applied || appliedIds.includes(job.id) || justApplied)
   const isClient = user?.id === job.client_id
@@ -102,6 +107,14 @@ export function JobDetailPage() {
   const otherJobs = job.client_other_jobs || []
 
   const handleApply = async () => {
+    if (!isSignedIn) {
+      window.dispatchEvent(
+        new CustomEvent('proxid-require-auth', {
+          detail: { action: 'apply for this job' },
+        })
+      )
+      return
+    }
     if (!jobId) return
     setApplying(true)
     try {
@@ -135,28 +148,17 @@ export function JobDetailPage() {
         </Link>
       </div>
 
-      {/* Job Photo Banner (Clickable to Lightbox) */}
-      {job.image_url && (
-        <div
-          className="overflow-hidden rounded-2xl border border-line bg-surface shadow-xs cursor-pointer group"
-          onClick={() => openLightbox(job.image_url, job.title)}
-          title="Click to view full photo and download"
-          data-testid="job-banner-image"
-        >
-          <div className="relative aspect-[21/9] sm:aspect-video w-full max-h-[340px] overflow-hidden bg-sunken">
-            <SafeImage
-              src={job.image_url}
-              alt={job.title}
-              className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
-              fallback={
-                <HouseIllustration className="h-20 w-20 opacity-80" size={80} />
-              }
-              skeletonClassName="aspect-[21/9] sm:aspect-video w-full max-h-[340px]"
-            />
-            <div className="absolute bottom-3 right-3 rounded-lg border border-line/40 bg-ink/75 px-2.5 py-1 text-[11px] font-mono text-page backdrop-blur-xs shadow-xs">
-              Click to expand photo
-            </div>
-          </div>
+      {/* Job Photo Banner / Hero Gallery (Clickable to Lightbox) */}
+      {jobImages.length > 0 && (
+        <div data-testid="job-banner-image">
+          <HeroGallery
+            images={jobImages}
+            title={job.title}
+            aspectRatioClass="aspect-[21/9] sm:aspect-video w-full max-h-[340px]"
+            fallback={
+              <HouseIllustration className="h-20 w-20 opacity-80" size={80} />
+            }
+          />
         </div>
       )}
 

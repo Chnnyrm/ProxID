@@ -47,7 +47,11 @@ export function RequireAuthModal() {
     <>
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs">
+          <div
+            role="dialog"
+            aria-modal="true"
+            className="fixed inset-0 z-[1200] flex items-center justify-center p-4 bg-ink/60 backdrop-blur-xs"
+          >
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}

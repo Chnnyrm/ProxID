@@ -30,6 +30,7 @@ class JobCreate(TrimmedText):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     image_url: str | None = Field(default=None, max_length=2048)
+    image_urls: list[str] = Field(default_factory=list)
     scheduled_for: datetime | None = None
 
     @model_validator(mode="after")
@@ -40,6 +41,10 @@ class JobCreate(TrimmedText):
             raise ValueError("The maximum budget cannot be lower than the minimum budget.")
         if (self.latitude is None) != (self.longitude is None):
             raise ValueError("Send both a latitude and a longitude, or neither.")
+        if not self.image_urls and self.image_url:
+            self.image_urls = [self.image_url]
+        elif self.image_urls and not self.image_url:
+            self.image_url = self.image_urls[0]
         return self
 
 
@@ -69,6 +74,7 @@ class JobOut(OutputModel):
     latitude: float | None = None
     longitude: float | None = None
     image_url: str | None = None
+    image_urls: list[str] = Field(default_factory=list)
     distance_km: float | None = None
     client_display_name: str | None = None
     client_avatar_url: str | None = None

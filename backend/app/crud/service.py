@@ -182,9 +182,12 @@ async def create(
     longitude: float,
     radius_km: float,
     image_url: str | None = None,
+    image_urls: list[str] | None = None,
     is_demo: bool = False,
 ) -> ServiceListing:
     """Insert one listing and flush."""
+    urls = list(image_urls) if image_urls else ([image_url] if image_url else [])
+    cover = image_url or (urls[0] if urls else None)
     listing = ServiceListing(
         provider_id=provider_id,
         category_id=category_id,
@@ -195,7 +198,8 @@ async def create(
         max_price=max_price,
         location=to_wkt_point(latitude, longitude),
         radius_km=radius_km,
-        image_url=image_url,
+        image_url=cover,
+        image_urls=urls,
         is_demo=is_demo,
     )
     db.add(listing)

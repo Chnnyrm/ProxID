@@ -17,6 +17,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    JSON,
     Numeric,
     String,
     Text,
@@ -70,6 +71,7 @@ class Job(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
         Geography(geometry_type="POINT", srid=4326, spatial_index=False), nullable=True
     )
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_urls: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False, server_default="[]")
     scheduled_for: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

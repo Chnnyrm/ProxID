@@ -15,6 +15,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { HouseIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { ListingSlideshow } from '@/components/ListingSlideshow'
 import { SafeImage } from '@/components/SafeImage'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/hooks/useAuth'
@@ -39,6 +40,9 @@ export function JobCard({ job }: { job: Job }) {
   const isApplied = Boolean(job.applied || appliedIds.includes(job.id) || justApplied)
   const isClient = user?.id === job.client_id
   const isOpen = job.status === 'open'
+  const jobImages = (job.image_urls && job.image_urls.length > 0)
+    ? job.image_urls
+    : (job.image_url ? [job.image_url] : [])
 
   const handleApplyClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -80,26 +84,16 @@ export function JobCard({ job }: { job: Job }) {
         className="group animate-fade-rise rounded-2xl border border-line bg-surface p-4 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-structural flex flex-col justify-between gap-3 text-left"
       >
         <div className="flex items-start gap-3.5">
-          {/* 88x88 thumbnail on the left, radius 12 */}
-          <div
-            className="relative h-[88px] w-[88px] shrink-0 rounded-xl overflow-hidden bg-sunken border border-line cursor-pointer hover:scale-105 transition-transform"
-            onClick={(e) => {
-              if (job.image_url) {
-                e.preventDefault()
-                e.stopPropagation()
-                openLightbox(job.image_url, job.title)
-              }
-            }}
-            title="Click to view full photo and download"
-          >
-            <SafeImage
-              src={job.image_url}
-              alt={job.title}
-              className="h-full w-full object-cover"
+          {/* 88x88 thumbnail or slideshow on the left, radius 12 */}
+          <div className="relative h-[88px] w-[88px] shrink-0 rounded-xl overflow-hidden bg-sunken border border-line">
+            <ListingSlideshow
+              images={jobImages}
+              title={job.title}
+              aspectRatioClass="h-[88px] w-[88px]"
               fallback={
                 <HouseIllustration className="h-12 w-12 opacity-80" size={48} />
               }
-              skeletonClassName="h-[88px] w-[88px]"
+              onImageClick={(url) => openLightbox(url, job.title)}
             />
           </div>
 

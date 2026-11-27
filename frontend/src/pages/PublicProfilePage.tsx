@@ -29,6 +29,7 @@ import { Link, useParams } from 'react-router-dom'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { TradespersonIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { ListingSlideshow } from '@/components/ListingSlideshow'
 import { SafeImage } from '@/components/SafeImage'
 import { usePublicProfile } from '@/hooks/usePublicProfile'
 import { money } from '@/lib/format'
@@ -265,27 +266,16 @@ export function PublicProfilePage() {
                 to={`/services/${svc.id}`}
                 className="group rounded-2xl border border-line bg-surface overflow-hidden shadow-xs hover:border-structural hover:-translate-y-1 hover:shadow-md transition-all duration-200 flex flex-col justify-between"
               >
-                {/* Listing Image */}
-                <div
-                  className="relative aspect-video w-full bg-sunken overflow-hidden cursor-pointer"
-                  onClick={(e) => {
-                    if (svc.image_url) {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      openLightbox(svc.image_url, svc.title)
-                    }
-                  }}
-                  title="Click to view full image and download"
-                >
-                  <SafeImage
-                    src={svc.image_url}
-                    alt={svc.title}
-                    fallback={
-                      <TradespersonIllustration className="h-16 w-16 opacity-75" size={64} />
-                    }
-                    skeletonClassName="aspect-video w-full"
-                  />
-                </div>
+                {/* Listing Slideshow */}
+                <ListingSlideshow
+                  images={svc.image_url ? [svc.image_url] : []}
+                  title={svc.title}
+                  aspectRatioClass="aspect-video"
+                  fallback={
+                    <TradespersonIllustration className="h-16 w-16 opacity-75" size={64} />
+                  }
+                  onImageClick={(url) => openLightbox(url, svc.title)}
+                />
 
                 <div className="p-4 flex-1 flex flex-col justify-between gap-3">
                   <div>

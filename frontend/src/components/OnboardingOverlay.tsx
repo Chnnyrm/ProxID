@@ -104,11 +104,24 @@ export function OnboardingOverlay() {
 
   // Listen for manual trigger to replay tour
   useEffect(() => {
-    const handleReopen = () => {
-      setShowChoice(true)
-      setStepIndex(0)
-      setOpen(true)
-      setTourActive(true, 'quick')
+    const handleReopen = (e?: Event) => {
+      const type = (e as CustomEvent<{ type?: 'quick' | 'story' }>)?.detail?.type
+      if (type === 'quick') {
+        setShowChoice(false)
+        setStepIndex(0)
+        setOpen(true)
+        setTourActive(true, 'quick')
+      } else if (type === 'story') {
+        setShowChoice(false)
+        setOpen(false)
+        useTourStore.getState().setStoryScene(0)
+        setTourActive(true, 'story')
+      } else {
+        setShowChoice(true)
+        setStepIndex(0)
+        setOpen(true)
+        setTourActive(true, 'quick')
+      }
     }
     window.addEventListener('open-onboarding', handleReopen)
     return () => window.removeEventListener('open-onboarding', handleReopen)

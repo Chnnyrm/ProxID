@@ -81,6 +81,9 @@ def to_job_out(
 ) -> JobOut:
     """Map a job to the wire shape, resolving its point into a coordinate pair."""
     latitude, longitude = extract_coordinates(job.location)
+    job_urls = getattr(job, "image_urls", None)
+    urls = list(job_urls) if job_urls else ([job.image_url] if job.image_url else [])
+    cover = job.image_url or (urls[0] if urls else None)
     return JobOut(
         id=job.id,
         client_id=job.client_id,
@@ -97,7 +100,8 @@ def to_job_out(
         status=job.status,
         latitude=latitude,
         longitude=longitude,
-        image_url=job.image_url,
+        image_url=cover,
+        image_urls=urls,
         distance_km=round(distance_metres / 1000.0, 2) if distance_metres is not None else None,
         client_display_name=client.display_name if client else None,
         client_avatar_url=client.avatar_url if client else None,
@@ -142,6 +146,8 @@ class JobService:
                 )
 
         effective_price = payload.price if payload.price is not None else (payload.min_price or 0.0)
+        urls = list(payload.image_urls) if payload.image_urls else ([payload.image_url] if payload.image_url else [])
+        cover = payload.image_url or (urls[0] if urls else None)
         job = await job_crud.create(
             db,
             client_id=actor.id,
@@ -154,7 +160,8 @@ class JobService:
             service_listing_id=payload.service_listing_id,
             latitude=payload.latitude,
             longitude=payload.longitude,
-            image_url=payload.image_url,
+            image_url=cover,
+            image_urls=urls,
             scheduled_for=payload.scheduled_for,
         )
         await self._audit.record(

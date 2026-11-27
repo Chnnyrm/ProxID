@@ -128,6 +128,7 @@ export interface ServiceListing {
   longitude: number | null
   radius_km: number
   image_url: string | null
+  image_urls?: string[]
   is_active: boolean
   distance_km: number | null
   provider_display_name: string | null
@@ -159,6 +160,7 @@ export interface Job {
   latitude: number | null
   longitude: number | null
   image_url: string | null
+  image_urls?: string[]
   distance_km: number | null
   client_display_name: string | null
   client_avatar_url?: string | null

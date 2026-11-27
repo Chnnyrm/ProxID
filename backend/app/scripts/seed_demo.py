@@ -138,6 +138,8 @@ CATEGORIES: tuple[tuple[str, str, str], ...] = (
     ("Pest Control", "pest-control", "Fumigation and infestation treatment"),
     ("Appliance Repair", "appliance-repair", "Fridges, washing machines and cookers"),
     ("Wellness & Therapy", "wellness", "Massage, physiotherapy and chiropractic care"),
+    ("Carpentry & Joinery", "carpentry", "Furniture building, cabinet fitting and woodwork"),
+    ("Solar & Renewable Energy", "solar-energy", "Solar panels, inverters and off-grid battery installations"),
 )
 
 PROVIDERS: tuple[ProviderSpec, ...] = (
@@ -359,21 +361,54 @@ async def _upsert(
 # was uploaded to Cloudinary and verified to return 200. The doubled folder segments
 # (proxid/services/proxid/services) are a historical artefact of the uploader; the
 # URLs resolve, and renaming them would break every saved reference for no gain.
-_SEED_LISTING_IMAGES: dict[str, str] = {
-    'Deep tissue massage and back relief': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531958/proxid/services/proxid/services/14131174a5dc5bb69eb1fc38992e0c77.jpg',
-    'Emergency plumbing call-out': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531911/proxid/services/proxid/services/587d6af3ceb4544182e14687fdb75b62.jpg',
-    'Fumigation, two-bedroom flat': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531942/proxid/services/proxid/services/a5f20904936757b78a8952b9cedb7df5.jpg',
-    'Office deep clean': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531924/proxid/services/proxid/services/e4ef64ffc07d5439880ca38133a09e06.jpg',
-    'Physiotherapy & spinal rehabilitation': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531966/proxid/services/proxid/services/2b52a2b453045eeaa3361b61689cc2c9.jpg',
-    'Socket and wiring repair': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531935/proxid/services/proxid/services/a56f727b9ecd5207a70073c8a9a36d74.jpg',
-    'Washing machine repair': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531951/proxid/services/proxid/services/e32daf736bf95ccfbfcccccefd27a0e4.jpg',
+_SEED_LISTING_IMAGES: dict[str, list[str]] = {
+    'Deep tissue massage and back relief': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531958/proxid/services/proxid/services/14131174a5dc5bb69eb1fc38992e0c77.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531966/proxid/services/proxid/services/2b52a2b453045eeaa3361b61689cc2c9.jpg',
+    ],
+    'Emergency plumbing call-out': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531911/proxid/services/proxid/services/587d6af3ceb4544182e14687fdb75b62.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532042/proxid/jobs/proxid/jobs/26d13c79b8e05a778ac3a0535f936199.jpg',
+    ],
+    'Fumigation, two-bedroom flat': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531942/proxid/services/proxid/services/a5f20904936757b78a8952b9cedb7df5.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532026/proxid/jobs/proxid/jobs/8037d41c5a6052d9b83594309793ccac.jpg',
+    ],
+    'Office deep clean': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531924/proxid/services/proxid/services/e4ef64ffc07d5439880ca38133a09e06.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532047/proxid/jobs/proxid/jobs/ce980b9d2646534080a925eabcba31ab.jpg',
+    ],
+    'Physiotherapy & spinal rehabilitation': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531966/proxid/services/proxid/services/2b52a2b453045eeaa3361b61689cc2c9.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531958/proxid/services/proxid/services/14131174a5dc5bb69eb1fc38992e0c77.jpg',
+    ],
+    'Socket and wiring repair': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531935/proxid/services/proxid/services/a56f727b9ecd5207a70073c8a9a36d74.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532018/proxid/jobs/proxid/jobs/a1de4380a00d573786644e98f4db468a.jpg',
+    ],
+    'Washing machine repair': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531951/proxid/services/proxid/services/e32daf736bf95ccfbfcccccefd27a0e4.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531935/proxid/services/proxid/services/a56f727b9ecd5207a70073c8a9a36d74.jpg',
+    ],
 }
 
-_SEED_JOB_IMAGES: dict[str, str] = {
-    'Deep clean after painting': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532047/proxid/jobs/proxid/jobs/ce980b9d2646534080a925eabcba31ab.jpg',
-    'Fix the kitchen sink leak': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532042/proxid/jobs/proxid/jobs/26d13c79b8e05a778ac3a0535f936199.jpg',
-    'Fumigate a two-bedroom flat before moving in': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532026/proxid/jobs/proxid/jobs/8037d41c5a6052d9b83594309793ccac.jpg',
-    'Two sockets in the front room stopped working': 'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532018/proxid/jobs/proxid/jobs/a1de4380a00d573786644e98f4db468a.jpg',
+_SEED_JOB_IMAGES: dict[str, list[str]] = {
+    'Deep clean after painting': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532047/proxid/jobs/proxid/jobs/ce980b9d2646534080a925eabcba31ab.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531924/proxid/services/proxid/services/e4ef64ffc07d5439880ca38133a09e06.jpg',
+    ],
+    'Fix the kitchen sink leak': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532042/proxid/jobs/proxid/jobs/26d13c79b8e05a778ac3a0535f936199.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531911/proxid/services/proxid/services/587d6af3ceb4544182e14687fdb75b62.jpg',
+    ],
+    'Fumigate a two-bedroom flat before moving in': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532026/proxid/jobs/proxid/jobs/8037d41c5a6052d9b83594309793ccac.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531942/proxid/services/proxid/services/a5f20904936757b78a8952b9cedb7df5.jpg',
+    ],
+    'Two sockets in the front room stopped working': [
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795532018/proxid/jobs/proxid/jobs/a1de4380a00d573786644e98f4db468a.jpg',
+        'https://res.cloudinary.com/dxssh54wy/image/upload/v1795531935/proxid/services/proxid/services/a56f727b9ecd5207a70073c8a9a36d74.jpg',
+    ],
 }
 
 async def seed(session: AsyncSession) -> SeedReport:
@@ -476,6 +511,8 @@ async def seed(session: AsyncSession) -> SeedReport:
 
         for index, (title, description, slug, price) in enumerate(spec.listings):
             listing_id = demo_id(f"listing:{spec.key}:{index}")
+            listing_imgs = _SEED_LISTING_IMAGES.get(title) or []
+            cover_img = listing_imgs[0] if listing_imgs else None
             _listing, listing_created = await _upsert(
                 session,
                 ServiceListing,
@@ -490,6 +527,8 @@ async def seed(session: AsyncSession) -> SeedReport:
                     "max_price": None,
                     "currency": "NGN",
                     "radius_km": Decimal("5"),
+                    "image_url": cover_img,
+                    "image_urls": listing_imgs,
                     "is_active": True,
                     "is_demo": True,
                     "location": to_wkt_point(spec.latitude, spec.longitude),
@@ -501,12 +540,20 @@ async def seed(session: AsyncSession) -> SeedReport:
     for spec in JOBS:
         job_id = demo_id(f"job:{spec.key}")
         provider_id = provider_ids.get(spec.provider_key) if spec.provider_key else None
+        job_imgs = _SEED_JOB_IMAGES.get(spec.title) or []
+        cover_job_img = job_imgs[0] if job_imgs else None
+        # Open jobs belong to a community resident so the demo user can view and apply to them
+        job_client_id = (
+            provider_ids.get("ifeoma", demo_user_id)
+            if spec.status == "open"
+            else demo_user_id
+        )
         job, created = await _upsert(
             session,
             Job,
             job_id,
             {
-                "client_id": demo_user_id,
+                "client_id": job_client_id,
                 "provider_id": provider_id,
                 "service_listing_id": None,
                 "category_id": category_ids[spec.category_slug],
@@ -515,6 +562,8 @@ async def seed(session: AsyncSession) -> SeedReport:
                 "price": Decimal(str(spec.price)),
                 "currency": "NGN",
                 "status": spec.status,
+                "image_url": cover_job_img,
+                "image_urls": job_imgs,
                 "location": to_wkt_point(spec.latitude, spec.longitude),
                 "message_count": len(spec.messages),
                 "completed_at": now - timedelta(days=7) if spec.status == "completed" else None,
@@ -664,13 +713,15 @@ async def seed(session: AsyncSession) -> SeedReport:
 
     # Restore seeded media. Without this a re-seed nulls every image, because the
     # create-or-update paths do not know about them.
-    for title, url in _SEED_LISTING_IMAGES.items():
+    for title, urls in _SEED_LISTING_IMAGES.items():
+        cover_img = urls[0] if urls else None
         await session.execute(
-            _sa_update(ServiceListing).where(ServiceListing.title == title).values(image_url=url)
+            _sa_update(ServiceListing).where(ServiceListing.title == title).values(image_url=cover_img, image_urls=urls)
         )
-    for title, url in _SEED_JOB_IMAGES.items():
+    for title, urls in _SEED_JOB_IMAGES.items():
+        cover_img = urls[0] if urls else None
         await session.execute(
-            _sa_update(Job).where(Job.title == title).values(image_url=url)
+            _sa_update(Job).where(Job.title == title).values(image_url=cover_img, image_urls=urls)
         )
 
     return report

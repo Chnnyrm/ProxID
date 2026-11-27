@@ -346,5 +346,3 @@ export function NeighborhoodMap({
     </div>
   )
 }
-  )
-}

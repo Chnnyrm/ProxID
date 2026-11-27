@@ -27,13 +27,18 @@ class ServiceCreate(TrimmedText):
     longitude: float = Field(ge=-180, le=180)
     radius_km: float = Field(default=5, gt=0, le=100)
     image_url: str | None = Field(default=None, max_length=2048)
+    image_urls: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _require_a_price(self) -> "ServiceCreate":
+    def _validate_service(self) -> "ServiceCreate":
         if self.price is None and self.min_price is None and self.max_price is None:
             raise ValueError("Set a price, or a minimum and maximum, so clients know what this costs.")
         if self.min_price is not None and self.max_price is not None and self.max_price < self.min_price:
             raise ValueError("The maximum price cannot be lower than the minimum price.")
+        if not self.image_urls and self.image_url:
+            self.image_urls = [self.image_url]
+        elif self.image_urls and not self.image_url:
+            self.image_url = self.image_urls[0]
         return self
 
 
@@ -50,6 +55,7 @@ class ServiceUpdate(TrimmedText):
     longitude: float | None = Field(default=None, ge=-180, le=180)
     radius_km: float | None = Field(default=None, gt=0, le=100)
     image_url: str | None = Field(default=None, max_length=2048)
+    image_urls: list[str] | None = None
     is_active: bool | None = None
 
 
@@ -74,6 +80,7 @@ class ServiceOut(OutputModel):
     longitude: float | None = None
     radius_km: float
     image_url: str | None = None
+    image_urls: list[str] = Field(default_factory=list)
     is_active: bool
     distance_km: float | None = None
     provider_display_name: str | None = None

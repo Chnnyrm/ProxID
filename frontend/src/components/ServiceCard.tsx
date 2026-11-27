@@ -18,6 +18,7 @@ import { ChevronRight } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { TradespersonIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { ListingSlideshow } from '@/components/ListingSlideshow'
 import { SafeImage } from '@/components/SafeImage'
 import { usePrefetchService } from '@/hooks/useProviders'
 import { distance as formatDistance, money } from '@/lib/format'
@@ -36,6 +37,9 @@ export function ServiceCard({
   const openLightbox = useLightboxStore((state) => state.openLightbox)
   const initials = (service.provider_display_name || 'PR').slice(0, 2).toUpperCase()
   const displayPrice = money(service.price, service.currency)
+  const serviceImages = (service.image_urls && service.image_urls.length > 0)
+    ? service.image_urls
+    : (service.image_url ? [service.image_url] : [])
 
   return (
     <Link
@@ -45,28 +49,17 @@ export function ServiceCard({
       onFocus={() => prefetchService(service.id)}
       className="group rounded-2xl border border-line bg-surface overflow-hidden shadow-xs flex flex-col justify-between transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-structural cursor-pointer text-left"
     >
-      {/* 16:9 Listing Photo Banner */}
+      {/* 16:9 Listing Photo Banner / Slideshow */}
       <div className="relative">
-        <div
-          className="relative aspect-video w-full bg-sunken overflow-hidden"
-          onClick={(e) => {
-            if (service.image_url) {
-              e.preventDefault()
-              e.stopPropagation()
-              openLightbox(service.image_url, service.title)
-            }
-          }}
-          title="Click to view full photo and download"
-        >
-          <SafeImage
-            src={service.image_url}
-            alt={service.title}
-            fallback={
-              <TradespersonIllustration className="h-16 w-16 opacity-75" size={64} />
-            }
-            skeletonClassName="aspect-video w-full"
-          />
-        </div>
+        <ListingSlideshow
+          images={serviceImages}
+          title={service.title}
+          aspectRatioClass="aspect-video"
+          fallback={
+            <TradespersonIllustration className="h-16 w-16 opacity-75" size={64} />
+          }
+          onImageClick={(url) => openLightbox(url, service.title)}
+        />
 
         {/* 40px provider avatar overlapping bottom-left corner with hairline ring */}
         <div className="absolute -bottom-5 left-4 z-10">
