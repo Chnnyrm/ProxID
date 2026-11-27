@@ -113,10 +113,24 @@ function readJson(req, limitBytes = 262144) {
 
 /** Both /verify and /settle take the same shape: { paymentPayload, paymentRequirements }. */
 function parsePaymentRequest(body) {
-  const payload = body?.paymentPayload ?? body?.payload
+  let payload = body?.paymentPayload ?? body?.payload
   const requirements = body?.paymentRequirements ?? body?.requirements
   if (!payload) throw new Error('missing paymentPayload')
   if (!requirements) throw new Error('missing paymentRequirements')
+  if (!payload.accepted && requirements) {
+    if (payload.signedTransaction || payload.sender) {
+      payload = {
+        x402Version: Number(requirements.x402Version || 2),
+        accepted: requirements,
+        payload,
+      }
+    } else {
+      payload = {
+        ...payload,
+        accepted: requirements,
+      }
+    }
+  }
   return { payload, requirements }
 }
 

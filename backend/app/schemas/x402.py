@@ -93,3 +93,46 @@ class X402RequirementsOut(OutputModel):
     mimeType: str
     maxTimeoutSeconds: int
     extra: dict
+
+
+class PaymentQuoteRequest(InputModel):
+    """Request parameters for generating an x402 payment quote."""
+
+    amount: str = "1000000"
+    asset: str = "CCD"
+    pay_to: str | None = None
+    description: str = "ProxID verified service payment"
+    job_id: uuid.UUID | None = None
+
+
+class PaymentQuoteOut(OutputModel):
+    """An exact payment quote ready for client-side signing."""
+
+    x402Version: int = 2
+    scheme: str = "exact"
+    network: str
+    payTo: str
+    amount: str
+    asset: str
+    description: str
+    extra: dict
+    price: dict
+    jobId: str | None = None
+
+
+class PaymentProtectedResponse(OutputModel):
+    """Successful access to a protected resource post-settlement."""
+
+    success: bool = True
+    status: str = "settled"
+    txHash: str
+    transaction: str
+    explorerUrl: str
+    payer: str
+    payee: str
+    amount: str
+    asset: str
+    receiptId: str | None = None
+    jobId: str | None = None
+    correlationId: str | None = None
+    data: dict

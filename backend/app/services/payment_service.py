@@ -19,7 +19,10 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, time, timezone
 from decimal import Decimal
+from typing import Any
 
+import httpx
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.config import Settings
@@ -28,6 +31,7 @@ from ..core.logging import get_logger
 from ..crud import job as job_crud
 from ..crud import user as user_crud
 from ..crud import x402_receipt as receipt_crud
+from ..models.job import Job
 from ..models.user import User
 from ..models.x402_receipt import X402Receipt
 from ..schemas.x402 import X402ReceiptOut
@@ -374,6 +378,234 @@ class PaymentService:
     def limits(self) -> dict[str, object]:
         """The agent's spending limits, for the profile page."""
         return self._spending.describe_limits()
+
+    async def fetch_fee_payer(self) -> str:
+        """Fetch the current sponsor account from the facilitator /supported endpoint."""
+        url = (self._settings.X402_FACILITATOR_URL or "https://proxid.onrender.com").rstrip("/")
+        fallback = self._settings.X402_SPONSOR_ADDRESS or "3LGnFKnaQpMCsTUd3LhefNJ1Fain5d4A31i3ZTzuRhzE9tLgXW"
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                res = await client.get(f"{url}/supported")
+                if res.status_code == 200:
+                    data = res.json()
+                    kinds = data.get("kinds") or []
+                    if kinds and isinstance(kinds, list):
+                        extra = kinds[0].get("extra") or {}
+                        fee_payer = extra.get("feePayer")
+                        if fee_payer:
+                            return str(fee_payer)
+                    signers = data.get("signers") or {}
+                    for net_signers in signers.values():
+                        if net_signers and isinstance(net_signers, list):
+                            return str(net_signers[0])
+        except Exception as exc:
+            logger.warning(
+                "failed to query facilitator /supported for fee payer, using fallback",
+                extra={"error": str(exc)},
+            )
+        return fallback
+
+    async def get_quote(
+        self,
+        *,
+        amount: str = "1000000",
+        asset: str = "CCD",
+        pay_to: str | None = None,
+        description: str = "ProxID verified service payment",
+        job_id: uuid.UUID | None = None,
+    ) -> dict[str, Any]:
+        """Generate an exact payment quote with network, asset, and fee payer."""
+        fee_payer = await self.fetch_fee_payer()
+        recipient = (
+            pay_to
+            or self._settings.CONCORDIUM_X402_MERCHANT_ACCOUNT
+            or "3LGnFKnaQpMCsTUd3LhefNJ1Fain5d4A31i3ZTzuRhzE9tLgXW"
+        )
+        return {
+            "x402Version": 2,
+            "scheme": "exact",
+            "network": self._settings.CONCORDIUM_CAIP2_NETWORK,
+            "payTo": recipient,
+            "amount": str(amount),
+            "asset": asset,
+            "description": description,
+            "jobId": str(job_id) if job_id else None,
+            "extra": {
+                "feePayer": fee_payer,
+            },
+            "price": {
+                "amount": str(amount),
+                "asset": asset,
+            },
+        }
+
+    async def verify_and_settle(
+        self,
+        db: AsyncSession,
+        *,
+        payment_payload: dict[str, Any],
+        requirements: dict[str, Any],
+        actor: User | None = None,
+        correlation_id: str | None = None,
+        job_id: uuid.UUID | None = None,
+    ) -> dict[str, Any]:
+        """Verify with facilitator and settle on Concordium testnet."""
+        url = (self._settings.X402_FACILITATOR_URL or "https://proxid.onrender.com").rstrip("/")
+        timeout = float(self._settings.X402_FINALIZATION_TIMEOUT_SECONDS + 15)
+
+        # 1. Forward to facilitator /verify
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            try:
+                verify_res = await client.post(
+                    f"{url}/verify",
+                    headers={"Content-Type": "application/json"},
+                    json={
+                        "paymentPayload": payment_payload,
+                        "paymentRequirements": requirements,
+                    },
+                )
+                verify_data = verify_res.json() if verify_res.content else {}
+            except Exception as exc:
+                return {
+                    "success": False,
+                    "status": "failed",
+                    "error": "facilitator_unreachable",
+                    "errorReason": f"Could not reach facilitator /verify: {exc}",
+                }
+
+        is_valid = bool(verify_data.get("isValid") or verify_data.get("valid"))
+        if not is_valid:
+            reason = (
+                verify_data.get("invalidReason")
+                or verify_data.get("reason")
+                or verify_data.get("error")
+                or "Payment verification failed"
+            )
+            return {
+                "success": False,
+                "status": "failed",
+                "error": "verification_failed",
+                "errorReason": str(reason),
+            }
+
+        # 2. Forward to facilitator /settle
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            try:
+                settle_res = await client.post(
+                    f"{url}/settle",
+                    headers={"Content-Type": "application/json"},
+                    json={
+                        "paymentPayload": payment_payload,
+                        "paymentRequirements": requirements,
+                    },
+                )
+                settle_data = settle_res.json() if settle_res.content else {}
+            except Exception as exc:
+                return {
+                    "success": False,
+                    "status": "failed",
+                    "error": "settlement_timeout",
+                    "errorReason": f"Facilitator settlement failed or timed out: {exc}",
+                }
+
+        success = bool(settle_data.get("success"))
+        tx_hash = settle_data.get("transaction") or settle_data.get("txHash")
+        if not success or not tx_hash:
+            error_reason = (
+                settle_data.get("errorReason")
+                or settle_data.get("error")
+                or "The facilitator did not settle the payment."
+            )
+            return {
+                "success": False,
+                "status": "failed",
+                "error": "settlement_failed",
+                "errorReason": str(error_reason),
+            }
+
+        # 3. Successful real settlement: record receipt and update job
+        payer_account = (
+            settle_data.get("payer")
+            or payment_payload.get("payload", {}).get("sender")
+            or self._settings.X402_PAYER_ADDRESS
+        )
+        payee_account = (
+            requirements.get("payTo")
+            or self._settings.CONCORDIUM_X402_MERCHANT_ACCOUNT
+        )
+        raw_amount = (
+            requirements.get("price", {}).get("amount")
+            or requirements.get("amount")
+            or "1000000"
+        )
+        amount_ccd = Decimal(str(raw_amount)) / Decimal(10**6)
+
+        target_job = None
+        if job_id:
+            target_job = await job_crud.get_by_id(db, job_id)
+        if target_job is None:
+            # Pick latest active job in the system
+            result = await db.execute(select(Job).order_by(Job.created_at.desc()).limit(1))
+            target_job = result.scalar_one_or_none()
+
+        target_job_id = target_job.id if target_job else None
+        if target_job:
+            target_job.x402_tx_hash = str(tx_hash)
+
+        receipt = None
+        if target_job_id:
+            receipt = await receipt_crud.create(
+                db,
+                job_id=target_job_id,
+                amount=float(amount_ccd),
+                currency="CCD",
+                payer_id=actor.id if actor else target_job.client_id,
+                payee_id=target_job.provider_id,
+                status="settled",
+                idempotency_key=f"settled-{tx_hash}",
+                network="concordium",
+                network_caip2=requirements.get("network") or self._settings.CONCORDIUM_CAIP2_NETWORK,
+                asset="CCD",
+                fee_payer=requirements.get("extra", {}).get("feePayer"),
+                requirements=requirements,
+            )
+            receipt.x402_tx_hash = str(tx_hash)
+            receipt.payer_account = str(payer_account) if payer_account else None
+            receipt.payee_account = str(payee_account) if payee_account else None
+            receipt.settled_at = datetime.now(timezone.utc)
+            await db.flush()
+
+            await self._audit.record(
+                db,
+                action="settle_x402_payment",
+                subject_type="receipt",
+                subject_id=str(receipt.id),
+                outcome="success",
+                actor_id=actor.id if actor else None,
+                detail={
+                    "tx_hash": str(tx_hash),
+                    "amount": float(amount_ccd),
+                    "payer": str(payer_account),
+                    "payee": str(payee_account),
+                    "correlation_id": correlation_id,
+                },
+            )
+
+        return {
+            "success": True,
+            "status": "settled",
+            "txHash": str(tx_hash),
+            "transaction": str(tx_hash),
+            "explorerUrl": f"https://testnet.ccdscan.io/?r={tx_hash}",
+            "payer": str(payer_account),
+            "payee": str(payee_account),
+            "amount": str(raw_amount),
+            "asset": "CCD",
+            "receiptId": str(receipt.id) if receipt else None,
+            "jobId": str(target_job_id) if target_job_id else None,
+            "correlationId": correlation_id,
+            "message": "Payment verified and settled on Concordium testnet.",
+        }
 
 
 def _requirements_from_receipt(

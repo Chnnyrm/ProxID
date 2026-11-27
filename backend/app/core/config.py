@@ -177,6 +177,9 @@ class Settings(BaseSettings):
     X402_BRIDGE_URL: str = ""
     # Facilitator this deployment trusts to verify and sponsor gas. No default.
     X402_FACILITATOR_URL: str = ""
+    # Managed accounts for sponsored transactions. Neither belongs to a user.
+    X402_SPONSOR_ADDRESS: str = "3LGnFKnaQpMCsTUd3LhefNJ1Fain5d4A31i3ZTzuRhzE9tLgXW"
+    X402_PAYER_ADDRESS: str = "4EuBPU3CKVWkWxHxUtq9fhazzuCx9dWFkdL5TjUTwkAwZ3bj98"
     # Asset and atomic amount unit. CCD has 6 decimals; USDR is a PLT with 6.
     X402_ASSET: str = "CCD"
     X402_ASSET_DECIMALS: int = 6
@@ -374,12 +377,10 @@ class Settings(BaseSettings):
 
     @property
     def x402_configured(self) -> bool:
-        """True only when the flag, the bridge, the facilitator and a merchant exist."""
+        """True only when the flag and facilitator exist."""
         return bool(
             self.FEATURE_X402_PAYMENTS
-            and self.X402_BRIDGE_URL
             and self.X402_FACILITATOR_URL
-            and self.CONCORDIUM_X402_MERCHANT_ACCOUNT
         )
 
 
