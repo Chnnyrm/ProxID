@@ -30,6 +30,8 @@ import QRCode from 'qrcode'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { HouseIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { ProfileActionPanel } from '@/components/ProfileActionPanel'
+import { ProfileToursCard } from '@/components/ProfileToursCard'
 import { SafeImage } from '@/components/SafeImage'
 import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
@@ -335,12 +337,6 @@ export function ProfilePage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
-                <Link to="/services?compose=1">
-                  <Button intent="primary" size="sm">
-                    <Plus size={13} className="mr-1" aria-hidden="true" />
-                    Offer a Service
-                  </Button>
-                </Link>
                 <Button
                   intent="secondary"
                   size="sm"
@@ -495,6 +491,9 @@ export function ProfilePage() {
           )}
         </CardBody>
       </Card>
+
+      {/* Illustrated Commerce Action Panel */}
+      <ProfileActionPanel />
 
       {/* Concordium Zero-Knowledge Verification Section */}
       <Card>
@@ -763,6 +762,9 @@ export function ProfilePage() {
           </p>
         </CardBody>
       </Card>
+
+      {/* Replayable Product Tours */}
+      <ProfileToursCard />
 
       {/* Your Jobs History Section */}
       <Card>
