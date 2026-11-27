@@ -29,6 +29,7 @@ import {
   ChevronDown,
   ChevronUp,
   Cpu,
+  ExternalLink,
   HelpCircle,
   Loader2,
   MapPin,
@@ -562,6 +563,42 @@ export function AgentPage() {
                                 </span>
                               </div>
                               <p className="text-muted text-xs leading-snug">{st.summary}</p>
+
+                              {/* On-Chain Payment Card with Real Explorer Link */}
+                              {Boolean(st.result?.tx_hash) && (
+                                <div className="rounded-xl border border-accent/40 bg-accent/5 p-2.5 space-y-1.5 shadow-xs">
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-semibold text-ink flex items-center gap-1.5">
+                                      <CheckCircle2 size={13} className="text-accent" />
+                                      Settled on Concordium
+                                    </span>
+                                    <span className="font-mono text-ink font-bold">
+                                      {st.result.amount ? `${st.result.amount} CCD` : '1.00 CCD'}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-2 pt-1 border-t border-line/50">
+                                    <span className="text-[10px] text-muted font-mono truncate max-w-[200px]" title={st.result.tx_hash}>
+                                      {st.result.tx_hash}
+                                    </span>
+                                    <a
+                                      href={`https://testnet.ccdscan.io/?r=${st.result.tx_hash}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-1 text-[11px] font-mono font-medium text-primary underline hover:text-primary-hover shrink-0"
+                                    >
+                                      <span>Explorer</span>
+                                      <ExternalLink size={11} aria-hidden="true" />
+                                    </a>
+                                  </div>
+                                </div>
+                              )}
+
+                              {(st.tool === 'pay_for_service' || st.tool === 'settle_x402_payment') && !st.result?.tx_hash && (
+                                <div className="rounded-lg border border-line bg-sunken/40 px-2.5 py-1.5 text-[11px] text-muted">
+                                  No settlement has occurred. No transaction hash exists.
+                                </div>
+                              )}
+
                               {st.arguments && (
                                 <div className="text-[10px] font-mono text-muted bg-sunken/50 p-2 rounded-lg border border-line/60 overflow-x-auto">
                                   <span className="text-ink font-semibold">args:</span> {JSON.stringify(st.arguments)}

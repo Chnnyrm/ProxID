@@ -433,7 +433,12 @@ export function JobRoomPage() {
 
           {/* Payment Panel */}
           {isClient || isProvider ? (
-            <PaymentPanel jobId={job.id} amount={job.price} currency={job.currency} />
+            <PaymentPanel
+              jobId={job.id}
+              amount={job.price}
+              currency={job.currency}
+              jobTxHash={job.x402_tx_hash}
+            />
           ) : null}
 
           {/* Agent Activity Panel */}
