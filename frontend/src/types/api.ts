@@ -39,6 +39,7 @@ export interface User {
   neighbourhood: string | null
   concordium_verified: boolean
   cis8004_agent_id: string | null
+  onboarded?: boolean
   is_demo: boolean
   created_at: string
 }

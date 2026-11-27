@@ -390,9 +390,21 @@ export function ProfilePage() {
       <Card>
         <CardHeader
           title="Concordium Zero-Knowledge Verification"
-          hint="Single-use cryptographic challenge bound to proxid.com. Approved in Concordium ID app."
+          hint="Single-use cryptographic challenge bound to this origin. Approved in Concordium ID app."
         />
         <CardBody className="space-y-4">
+          <div className="rounded-xl border border-line bg-sunken/40 p-3.5 text-xs text-muted space-y-2">
+            <div className="font-semibold text-ink flex items-center gap-1.5 font-display uppercase tracking-wider text-[11px]">
+              <span>How Concordium Verification Works</span>
+            </div>
+            <ul className="space-y-1.5 list-disc list-inside leading-relaxed text-[11px]">
+              <li><strong className="text-ink">What it asks for:</strong> Zero-knowledge proof of unique human personhood from your Concordium ID wallet.</li>
+              <li><strong className="text-ink">Why:</strong> Proves you are a real human provider to clients without revealing personal identity or documents.</li>
+              <li><strong className="text-ink">What happens next:</strong> An on-chain verification badge is attached to your account and shown on your cards and public profile.</li>
+              <li><strong className="text-ink">What it cannot do today:</strong> Veriox has not published a public API on testnet, so identity issuance is currently demonstrated via a secure challenge simulation.</li>
+            </ul>
+          </div>
+
           <div className="flex flex-wrap items-center gap-2">
             {(['personhood', 'age_over_18'] as const).map((option) => (
               <button
@@ -437,7 +449,7 @@ export function ProfilePage() {
           </div>
 
           {request.data ? (
-            <div className="rounded-xl border border-line bg-surface p-4 text-xs space-y-2 shadow-sm">
+            <div className="rounded-xl border border-line bg-surface p-4 text-xs space-y-3 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
                 <div className="flex items-center gap-1.5">
                   <Badge tone="quiet">{request.data.purpose}</Badge>
@@ -445,25 +457,13 @@ export function ProfilePage() {
                 </div>
                 <span className="text-muted">expires {timeAgo(request.data.expires_at)}</span>
               </div>
-              <p className="text-sm text-ink">{request.data.message}</p>
-              <dl className="space-y-1 text-muted">
-                <div className="flex justify-between gap-2">
-                  <dt>Bound domain</dt>
-                  <dd className="font-mono text-ink">{request.data.bound_domain}</dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt>Request anchor</dt>
-                  <dd className="truncate font-mono text-ink">
-                    {request.data.request_anchor_ref ?? 'none, not anchored'}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <dt>QR payload</dt>
-                  <dd className="truncate font-mono text-ink">
-                    {request.data.qr_payload ?? 'none, simulated verifier'}
-                  </dd>
-                </div>
-              </dl>
+              <div className="flex justify-between items-center gap-2">
+                <span className="text-muted">Bound domain</span>
+                <span className="font-mono text-ink font-semibold">{request.data.bound_domain}</span>
+              </div>
+              <p className="text-xs text-muted leading-relaxed">
+                Veriox publishes no public API, so no QR code can be produced; the verification challenge is simulated for demonstration.
+              </p>
             </div>
           ) : null}
 

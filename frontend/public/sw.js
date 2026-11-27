@@ -1,12 +1,70 @@
 // Service Worker for ProxID Push Notifications and Offline Shell
 // Pure ASCII only.
 
+var CACHE_NAME = 'proxid-appshell-v2';
+var APP_SHELL_ASSETS = [
+  '/',
+  '/index.html',
+  '/manifest.webmanifest',
+  '/favicon.svg',
+  '/icon.png',
+  '/pwa-192x192.png',
+  '/pwa-512x512.png',
+  '/pwa-maskable-512x512.png',
+  '/brands/concordium.svg'
+];
+
 self.addEventListener('install', (event) => {
-  self.skipWaiting();
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(APP_SHELL_ASSETS).catch(() => {});
+    }).then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(
+    caches.keys().then((keys) => {
+      return Promise.all(
+        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+      );
+    }).then(() => self.clients.claim())
+  );
+});
+
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  var url = new URL(event.request.url);
+
+  // Skip API requests from shell cache (API requests handled by TanStack Query or network)
+  if (url.pathname.startsWith('/api/')) return;
+
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request).catch(function () {
+        return caches.match('/index.html') || caches.match('/');
+      })
+    );
+    return;
+  }
+
+  event.respondWith(
+    caches.match(event.request).then(function (cachedResponse) {
+      if (cachedResponse) return cachedResponse;
+      return fetch(event.request).then(function (networkResponse) {
+        if (!networkResponse || networkResponse.status !== 200 || networkResponse.type !== 'basic') {
+          return networkResponse;
+        }
+        var responseToCache = networkResponse.clone();
+        caches.open(CACHE_NAME).then(function (cache) {
+          cache.put(event.request, responseToCache);
+        });
+        return networkResponse;
+      }).catch(function () {
+        return cachedResponse;
+      });
+    })
+  );
 });
 
 self.addEventListener('message', (event) => {

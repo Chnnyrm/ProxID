@@ -47,6 +47,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 
 import { Button } from '@/components/ui/button'
+import { AgentCharacterIllustration } from '@/components/illustrations/CartoonIllustrations'
 import { useAuth } from '@/hooks/useAuth'
 import {
   useAgentActivity,
@@ -105,6 +106,9 @@ export function AgentPage() {
   const [showPushPrompt, setShowPushPrompt] = useState(false)
   const [pushPromptBusy, setPushPromptBusy] = useState(false)
   const [pushPromptSuccess, setPushPromptSuccess] = useState(false)
+  const [expandedSteps, setExpandedSteps] = useState<Record<string, boolean>>({})
+  const [workingTasks, setWorkingTasks] = useState<{ id: string; label: string; status: 'pending' | 'active' | 'done' }[]>([])
+  const taskTimersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const recognitionRef = useRef<any>(null)
   const chatBottomRef = useRef<HTMLDivElement | null>(null)
@@ -163,6 +167,15 @@ export function AgentPage() {
       const clean = cmd.trim()
       if (!clean) return
 
+      if (!isSignedIn) {
+        window.dispatchEvent(
+          new CustomEvent('proxid-require-auth', {
+            detail: { action: 'speak with proxidAI' },
+          })
+        )
+        return
+      }
+
       stopListening()
       setInputCommand('')
       setSpeechInterim('')
@@ -177,6 +190,33 @@ export function AgentPage() {
       setMessages((prev) => [...prev, userMsg])
       setWorkingStatus('searching nearby providers...')
 
+      // Initialize live progress task list
+      taskTimersRef.current.forEach(clearTimeout)
+      taskTimersRef.current = []
+      setWorkingTasks([
+        { id: 'search', label: 'Searching nearby providers...', status: 'active' },
+        { id: 'compare', label: 'Comparing rates and verified anchors...', status: 'pending' },
+        { id: 'draft', label: 'Drafting your response and actions...', status: 'pending' },
+      ])
+
+      const timer1 = setTimeout(() => {
+        setWorkingTasks([
+          { id: 'search', label: 'Searched nearby providers', status: 'done' },
+          { id: 'compare', label: 'Comparing rates and verified anchors...', status: 'active' },
+          { id: 'draft', label: 'Drafting your response and actions...', status: 'pending' },
+        ])
+      }, 700)
+
+      const timer2 = setTimeout(() => {
+        setWorkingTasks([
+          { id: 'search', label: 'Searched nearby providers', status: 'done' },
+          { id: 'compare', label: 'Compared rates and verified anchors', status: 'done' },
+          { id: 'draft', label: 'Drafting your response and actions...', status: 'active' },
+        ])
+      }, 1500)
+
+      taskTimersRef.current.push(timer1, timer2)
+
       const lower = clean.toLowerCase()
       if (lower.includes('plumber') && (lower.includes('yaba') || lower.includes('20000'))) {
         setCoordinates({ latitude: 6.5121, longitude: 3.3739 }, 'stored')
@@ -186,6 +226,9 @@ export function AgentPage() {
         { command: clean },
         {
           onSuccess: (data) => {
+            taskTimersRef.current.forEach(clearTimeout)
+            taskTimersRef.current = []
+            setWorkingTasks([])
             setWorkingStatus(null)
             const agentMsg: ChatMessage = {
               id: `agent-${Date.now()}`,
@@ -199,8 +242,19 @@ export function AgentPage() {
             }
             setMessages((prev) => [...prev, agentMsg])
           },
-          onError: () => {
+          onError: (err: any) => {
+            taskTimersRef.current.forEach(clearTimeout)
+            taskTimersRef.current = []
+            setWorkingTasks([])
             setWorkingStatus(null)
+            if (err?.status === 401 || err?.statusCode === 401) {
+              window.dispatchEvent(
+                new CustomEvent('proxid-require-auth', {
+                  detail: { action: 'speak with proxidAI' },
+                })
+              )
+              return
+            }
             const errorMsg: ChatMessage = {
               id: `agent-error-${Date.now()}`,
               role: 'agent',
@@ -338,6 +392,14 @@ export function AgentPage() {
   }, [initialListen, searchParams, setSearchParams, startListening])
 
   const toggleMic = () => {
+    if (!isSignedIn) {
+      window.dispatchEvent(
+        new CustomEvent('proxid-require-auth', {
+          detail: { action: 'use voice commands with proxidAI' },
+        })
+      )
+      return
+    }
     if (isListening) {
       stopListening()
     } else {
@@ -348,6 +410,7 @@ export function AgentPage() {
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      taskTimersRef.current.forEach(clearTimeout)
       if (recognitionRef.current) {
         try {
           recognitionRef.current.stop()
@@ -365,7 +428,9 @@ export function AgentPage() {
             <img
               src={PROXIDAI_AVATAR}
               alt="proxidAI"
-              className="h-11 w-11 rounded-full border border-structural bg-surface object-cover shadow-xs"
+              className={`h-11 w-11 rounded-full border border-structural bg-surface object-cover shadow-xs transition-all ${
+                runAgent.isPending ? 'ring-2 ring-accent ring-offset-2 animate-pulse scale-105' : ''
+              }`}
             />
             <div
               className="absolute -bottom-0.5 -right-0.5 rounded-full bg-surface p-0.5 shadow-xs"
@@ -550,38 +615,71 @@ export function AgentPage() {
               ) : (
                 /* Agent Reply Bubble & Tool Steps */
                 <div className="max-w-[95%] sm:max-w-xl space-y-2.5">
-                  {/* Intermediate Tool Call Rows */}
+                  {/* Collapsible Tool Call Rows per turn */}
                   {msg.steps && msg.steps.length > 0 && (
-                    <div className="space-y-1.5 pl-1">
-                      <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted block">
-                        Tool Executions ({msg.steps.length})
-                      </span>
-                      {msg.steps.map((st, idx) => (
-                        <div
-                          key={idx}
-                          className="rounded-lg border border-line bg-sunken/40 px-3 py-2 text-xs space-y-1"
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="inline-flex items-center gap-1 font-mono text-[11px] font-bold text-ink">
-                              <Wrench size={12} className="text-muted" />
-                              {st.tool}
-                            </span>
-                            <span
-                              className={`text-[10px] font-mono font-bold uppercase ${
-                                st.succeeded ? 'text-accent' : 'text-muted'
-                              }`}
+                    <div className="space-y-2 pl-1">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedSteps((prev) => ({
+                            ...prev,
+                            [msg.id]: !prev[msg.id],
+                          }))
+                        }
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-line bg-sunken/50 text-xs font-mono font-medium text-ink hover:border-structural hover:bg-sunken transition-all shadow-xs"
+                        aria-expanded={Boolean(expandedSteps[msg.id])}
+                      >
+                        <Wrench size={13} className="text-muted" />
+                        <span className="font-bold">
+                          {msg.steps.length} {msg.steps.length === 1 ? 'step' : 'steps'}
+                        </span>
+                        <span className="text-[10px] text-muted font-normal">
+                          ({msg.steps.every((s) => s.succeeded) ? 'all succeeded' : 'completed'})
+                        </span>
+                        {expandedSteps[msg.id] ? (
+                          <ChevronUp size={14} className="text-muted ml-0.5" />
+                        ) : (
+                          <ChevronDown size={14} className="text-muted ml-0.5" />
+                        )}
+                      </button>
+
+                      {expandedSteps[msg.id] && (
+                        <div className="space-y-2 pt-1 animate-fade-rise">
+                          {msg.steps.map((st, idx) => (
+                            <div
+                              key={idx}
+                              className="rounded-xl border border-line bg-surface p-3 text-xs space-y-1.5 shadow-xs"
                             >
-                              {st.succeeded ? 'SUCCESS' : 'FAILED'}
-                            </span>
-                          </div>
-                          <p className="text-muted text-[11px] leading-snug">{st.summary}</p>
-                          {st.arguments && (
-                            <div className="text-[10px] font-mono text-muted/80 bg-surface px-2 py-1 rounded border border-line/60 overflow-x-auto">
-                              args: {JSON.stringify(st.arguments)}
+                              <div className="flex items-center justify-between">
+                                <span className="inline-flex items-center gap-1.5 font-mono text-[11px] font-bold text-ink">
+                                  <Terminal size={12} className="text-accent" />
+                                  {st.tool}
+                                </span>
+                                <span
+                                  className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-full border ${
+                                    st.succeeded
+                                      ? 'border-accent/40 bg-accent/10 text-ink'
+                                      : 'border-line bg-sunken text-muted'
+                                  }`}
+                                >
+                                  {st.succeeded ? 'SUCCESS' : 'FAILED'}
+                                </span>
+                              </div>
+                              <p className="text-muted text-xs leading-snug">{st.summary}</p>
+                              {st.arguments && (
+                                <div className="text-[10px] font-mono text-muted bg-sunken/50 p-2 rounded-lg border border-line/60 overflow-x-auto">
+                                  <span className="text-ink font-semibold">args:</span> {JSON.stringify(st.arguments)}
+                                </div>
+                              )}
+                              {st.result && (
+                                <div className="text-[10px] font-mono text-muted bg-sunken/30 p-2 rounded-lg border border-line/40 overflow-x-auto">
+                                  <span className="text-ink font-semibold">result:</span> {JSON.stringify(st.result)}
+                                </div>
+                              )}
                             </div>
-                          )}
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
                   )}
 
@@ -666,14 +764,53 @@ export function AgentPage() {
           ))
         )}
 
-        {/* Visible Working State Indicator */}
-        {workingStatus && (
-          <div className="flex items-center gap-3 p-3 rounded-2xl border border-line bg-surface max-w-sm shadow-xs animate-pulse">
-            <Loader2 size={16} className="animate-spin text-accent" />
-            <div>
-              <p className="text-xs font-bold text-ink">{workingStatus}</p>
-              <p className="text-[10px] font-mono text-muted">executing verified tools...</p>
+        {/* Live Task List Surface while working */}
+        {(runAgent.isPending || workingStatus) && (
+          <div className="rounded-2xl border-2 border-structural bg-surface p-4 max-w-md shadow-md space-y-3 animate-fade-rise">
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <AgentCharacterIllustration size={44} className="w-11 h-11 animate-pulse" />
+                <span className="absolute -bottom-1 -right-1 flex h-3 w-3">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-3 w-3 bg-accent"></span>
+                </span>
+              </div>
+              <div>
+                <h4 className="font-display text-xs uppercase tracking-wider text-ink font-bold">
+                  proxidAI is working
+                </h4>
+                <p className="text-[11px] text-muted font-mono">
+                  {workingStatus || 'executing verified tools...'}
+                </p>
+              </div>
             </div>
+
+            {workingTasks.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-line">
+                {workingTasks.map((t) => (
+                  <div key={t.id} className="flex items-center gap-2.5 text-xs font-mono">
+                    {t.status === 'done' ? (
+                      <CheckCircle2 size={16} className="text-accent shrink-0" />
+                    ) : t.status === 'active' ? (
+                      <Loader2 size={16} className="text-ink animate-spin shrink-0" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border border-line shrink-0" />
+                    )}
+                    <span
+                      className={
+                        t.status === 'done'
+                          ? 'text-muted line-through'
+                          : t.status === 'active'
+                          ? 'text-ink font-bold'
+                          : 'text-muted/60'
+                      }
+                    >
+                      {t.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 

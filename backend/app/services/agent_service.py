@@ -60,8 +60,18 @@ Rules:
 - Memory: You have memory of the conversation. When asked about prior requests or what the
   user previously asked, refer to the earlier turns in the conversation history accurately.
 - Location Awareness: You have access to the user's saved location in USER CONTEXT.
-  ALWAYS use their saved coordinates for anything location-specific. NEVER ask for their
-  location if coordinates or neighbourhood are present in USER CONTEXT.
+  If has_location is true, latitude and longitude are already known. NEVER ask for their
+  neighbourhood or GPS coordinates. ALWAYS use their saved coordinates for anything location-specific.
+- Intent Separation:
+  * search_providers: Find active service listings / providers nearby.
+  * hire_provider: Initiate booking or hiring of a specific provider.
+  * post_job: ONLY used when the user explicitly requests to post or advertise an open job request (e.g. "post a job for plumbers to apply", "advertise my request").
+  * "Book one", "book a [service]", "I need a [plumber/cleaner/etc], book one":
+    This means ENGAGING A PROVIDER, NEVER POSTING A JOB! First call search_providers with query and user coordinates, pick the highest-ranked verified match, present their quote, and provide an interactive Hire action.
+  * When ambiguous between hiring an existing provider vs posting an open job, ask the user with selectable chips rather than choosing silently.
+- Output Cleanliness:
+  * NEVER emit literal UI markup, button tags, or pseudo-markup like "(Button: Share Location)" or "[Button: ...]".
+  * The frontend renders interactive buttons solely from the structured actions array. Any textual mention of buttons or widgets in your prose is strictly forbidden.
 - Actionable choices: Never end a reply with a question that has no actionable buttons. Suggest
   specific providers with prices and offer clear choices.
 - Prefer calling a tool over guessing. Never invent a job, a provider, a price or an id.
@@ -77,6 +87,15 @@ Rules:
 - Specific search queries (e.g. "find me a plumber in Yaba under 20000"): Immediately call
   search_providers with query="plumber", the location coordinates, and respect the price ceiling.
 """
+
+
+def sanitize_agent_reply(text: str) -> str:
+    """Strip any leaked UI pseudo-buttons like (Button: Share Location) or [Button: ...]."""
+    cleaned = re.sub(r"\([Bb]utton:\s*[^)]+\)", "", text)
+    cleaned = re.sub(r"\[[Bb]utton:\s*[^\]]+\]", "", cleaned)
+    cleaned = re.sub(r"\b[Bb]utton:\s*[^\n]+", "", cleaned)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
 
 
 @dataclass
@@ -427,8 +446,48 @@ async def run_agent(
             actions=actions,
         )
 
-    # 5. Specific search path: "find me a plumber in Yaba under 20000"
-    is_plumber_path = "plumber" in cmd_lower and ("yaba" in cmd_lower or "20000" in cmd_lower or "near" in cmd_lower)
+    # 5. Handle ambiguous plumber queries
+    is_ambiguous_plumber = cmd_lower.strip() in (
+        "i need a plumber",
+        "need a plumber",
+        "i need a plumber.",
+        "need a plumber.",
+    )
+    if is_ambiguous_plumber:
+        reply = "I can help you engage a verified plumber nearby, or post an open job request for local plumbers to bid on. Which would you prefer?"
+        actions = [
+            {"id": "opt-book", "label": "Book a Plumber Now", "kind": "prompt"},
+            {"id": "opt-post", "label": "Post an Open Job", "kind": "prompt"},
+        ]
+        await agent_conversation_crud.add_turn(
+            db,
+            conv.id,
+            user.id,
+            role="assistant",
+            content=reply,
+            steps=[],
+            used_tools=[],
+            actions=actions,
+            degraded=False,
+            is_demo=user.is_demo,
+        )
+        return RunOutcome(
+            reply=reply,
+            steps=[],
+            used_tools=[],
+            context=context,
+            actions=actions,
+        )
+
+    # 6. Specific search path: "find me a plumber in Yaba under 20000" or "I need a plumber, book one"
+    is_plumber_path = "plumber" in cmd_lower and (
+        "yaba" in cmd_lower
+        or "20000" in cmd_lower
+        or "near" in cmd_lower
+        or "book" in cmd_lower
+        or "hire" in cmd_lower
+        or "need" in cmd_lower
+    )
     if is_plumber_path:
         lat, lon = resolve_coordinates(services.tool_context, {})
         plumber_lat = lat if lat is not None else 6.5121
@@ -443,7 +502,14 @@ async def run_agent(
         result = await execute_tool(services.tool_context, "search_providers", path_args, job_id=job_id)
         all_cards = result.get("results") or []
         filtered_cards = [c for c in all_cards if c.get("price") is None or float(c["price"]) <= 20000]
-        lines = [f"I found {len(filtered_cards)} verified plumber(s) in Yaba under NGN 20,000:"]
+        is_book = "book" in cmd_lower or "hire" in cmd_lower
+        if is_book:
+            lines = [
+                f"Booking means engaging a provider directly rather than advertising a request. I found {len(filtered_cards)} verified plumber(s) near you:"
+            ]
+        else:
+            lines = [f"I found {len(filtered_cards)} verified plumber(s) in Yaba under NGN 20,000:"]
+
         actions = []
         for idx, card in enumerate(filtered_cards[:3], start=1):
             dist = f"{card['distance_km']} km away" if card.get("distance_km") is not None else "in Yaba"
@@ -453,7 +519,7 @@ async def run_agent(
             actions.append(
                 {
                     "id": f"hire-plumber-{card['id']}",
-                    "label": f"Hire {card['provider_display_name']} // {price}",
+                    "label": f"Book {card['provider_display_name']} // {price}" if is_book else f"Hire {card['provider_display_name']} // {price}",
                     "kind": "hire",
                     "payload": {
                         "provider_id": card["provider_id"],
@@ -462,7 +528,7 @@ async def run_agent(
                         "title": card["title"],
                         "provider_display_name": card["provider_display_name"],
                     },
-                    "target": "/jobs",
+                    "target": f"/services/{card['id']}",
                 }
             )
 
@@ -588,7 +654,7 @@ async def run_agent(
 
         if not tool_calls:
             reply = (message.get("content") or "").strip()
-            final_reply = reply or _rule_based_reply(command, context)
+            final_reply = sanitize_agent_reply(reply or _rule_based_reply(command, context))
 
             # Never end with a question that has no action chips
             if final_reply.rstrip().endswith("?") and not actions:
@@ -685,7 +751,9 @@ async def run_agent(
     except DependencyUnavailableError:
         reply = ""
 
-    final_reply = reply or "I gathered what I could. Check the activity list for the details."
+    final_reply = sanitize_agent_reply(
+        reply or "I gathered what I could. Check the activity list for the details."
+    )
     if final_reply.rstrip().endswith("?") and not actions:
         actions = [
             {"id": "act-yes", "label": "Yes, proceed", "kind": "prompt"},

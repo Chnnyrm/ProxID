@@ -8,10 +8,13 @@
 
 import { Bot, Briefcase, Home, MapPin, User, Wrench } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 
 import { Logo } from '@/components/Logo'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { useAuth } from '@/hooks/useAuth'
+import { usePrefetchJobs } from '@/hooks/useJobs'
+import { usePrefetchServices } from '@/hooks/useProviders'
 
 interface NavItem {
   to: string
@@ -31,6 +34,16 @@ const NAV_ITEMS: NavItem[] = [
 export function Navigation() {
   const location = useLocation()
   const { isSignedIn, displayName } = useAuth()
+  const prefetchJobs = usePrefetchJobs()
+  const prefetchServices = usePrefetchServices()
+
+  const handlePrefetch = (to: string) => {
+    if (to === '/jobs') {
+      prefetchJobs()
+    } else if (to === '/services') {
+      prefetchServices()
+    }
+  }
 
   return (
     <>
@@ -65,6 +78,8 @@ export function Navigation() {
                 key={item.to}
                 to={item.to}
                 data-tour={item.tour}
+                onMouseEnter={() => handlePrefetch(item.to)}
+                onFocus={() => handlePrefetch(item.to)}
                 className={`group flex flex-col items-center justify-center w-16 h-14 rounded-xl transition-all duration-150 ${
                   isActive
                     ? 'border border-structural bg-page text-ink shadow-xs'
@@ -119,6 +134,8 @@ export function Navigation() {
               key={item.to}
               to={item.to}
               data-tour={item.tour}
+              onMouseEnter={() => handlePrefetch(item.to)}
+              onFocus={() => handlePrefetch(item.to)}
               className={`flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-colors ${
                 isActive ? 'text-ink font-bold' : 'text-muted hover:text-ink'
               }`}

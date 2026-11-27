@@ -71,7 +71,13 @@ export function NotificationBell() {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 mt-2 z-[700] w-80 sm:w-96 rounded-2xl border border-line bg-surface p-3 shadow-xl space-y-3">
+        <>
+          {/* Mobile backdrop */}
+          <div
+            className="fixed inset-0 bg-ink/40 z-[699] sm:hidden backdrop-blur-2xs"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="fixed inset-x-3 top-16 max-h-[82vh] overflow-y-auto z-[700] sm:static sm:max-h-[520px] sm:overflow-visible sm:absolute sm:right-0 sm:left-auto sm:top-full sm:mt-2 sm:w-96 rounded-2xl border border-line bg-surface p-3.5 shadow-xl space-y-3">
           {/* Header */}
           <div className="flex items-center justify-between border-b border-line pb-2.5">
             <div className="flex items-center gap-2">
@@ -214,6 +220,7 @@ export function NotificationBell() {
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   )

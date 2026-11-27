@@ -7,7 +7,7 @@ about.
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ....core.container import Container
@@ -25,6 +25,7 @@ router = APIRouter()
 @router.post("/request", response_model=VerificationOut, status_code=status.HTTP_201_CREATED)
 async def request_verification(
     payload: VerificationRequestIn,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     container: Container = Depends(get_container),
     current_user: CurrentUser = Depends(get_current_user),
@@ -35,8 +36,17 @@ async def request_verification(
     nonce and expiry and a null QR and anchor reference, so the flow is visible without
     anything being faked.
     """
+    raw_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.hostname or ""
+    incoming_host = raw_host.split(",")[0].strip() if raw_host else ""
+    if incoming_host and incoming_host.split(":")[0] not in ("localhost", "127.0.0.1"):
+        bound_domain = incoming_host
+    elif container.settings.VERIOX_BOUND_DOMAIN and "localhost" not in container.settings.VERIOX_BOUND_DOMAIN.lower():
+        bound_domain = container.settings.VERIOX_BOUND_DOMAIN
+    else:
+        bound_domain = incoming_host or container.settings.VERIOX_BOUND_DOMAIN or "localhost:5173"
+
     view = await container.verification.request_verification(
-        db, current_user, purpose=payload.purpose
+        db, current_user, purpose=payload.purpose, bound_domain=bound_domain
     )
     return VerificationOut(
         nonce=view.nonce,

@@ -237,11 +237,19 @@ export function JobDetailPage() {
                 )
               ) : null
             ) : (
-              <Link to="/login">
-                <Button size="md" intent="secondary">
-                  <span>Sign in to apply</span>
-                </Button>
-              </Link>
+              <Button
+                size="md"
+                intent="secondary"
+                onClick={() => {
+                  window.dispatchEvent(
+                    new CustomEvent('proxid-require-auth', {
+                      detail: { action: 'apply for this job' },
+                    })
+                  )
+                }}
+              >
+                <span>Sign in to apply</span>
+              </Button>
             )
           )}
 

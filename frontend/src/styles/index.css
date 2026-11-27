@@ -97,6 +97,15 @@ body {
   -webkit-font-smoothing: antialiased;
   /* Nothing may scroll sideways at 390px. */
   overflow-x: hidden;
+  overscroll-behavior-y: none;
+}
+
+/* Safe-area insets for standalone PWA on mobile */
+.safe-area-pt {
+  padding-top: max(0.5rem, env(safe-area-inset-top, 0px));
+}
+.safe-area-pb {
+  padding-bottom: max(0.5rem, env(safe-area-inset-bottom, 0px));
 }
 
 /*

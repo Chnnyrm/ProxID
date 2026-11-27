@@ -2,7 +2,7 @@
  * Providers, listings and categories around the current coordinate.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type { Coordinates } from '@/lib/contracts'
 import { providerService } from '@/services/providerService'
@@ -23,6 +23,7 @@ export function useNearbyProviders(verifiedOnly = false) {
   return useQuery({
     queryKey: providerKeys.nearby(coordinates, radiusKm, verifiedOnly),
     queryFn: () => providerService.nearby(coordinates, radiusKm, verifiedOnly, 24),
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -40,7 +41,7 @@ export function useCategories() {
   return useQuery({
     queryKey: providerKeys.categories,
     queryFn: () => providerService.categories(),
-    staleTime: 60 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
   })
 }
 
@@ -60,6 +61,7 @@ export function useNearbyListings(verifiedOnly = false) {
   return useQuery({
     queryKey: ['listings', 'nearby', coordinates.latitude, coordinates.longitude, radiusKm, verifiedOnly],
     queryFn: () => providerService.listingsNearby(coordinates, radiusKm, verifiedOnly, 40),
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -69,6 +71,7 @@ export function useListing(id: string | undefined) {
     queryKey: ['services', 'detail', id],
     queryFn: () => providerService.listing(id as string),
     enabled: Boolean(id),
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -93,4 +96,30 @@ export function useCreateListing() {
       void queryClient.invalidateQueries({ queryKey: ['listings'] })
     },
   })
+}
+
+/** Prefetch nearby providers/services. */
+export function usePrefetchServices() {
+  const queryClient = useQueryClient()
+  const coordinates = useLocationStore((state) => state.coordinates)
+  const radiusKm = useLocationStore((state) => state.radiusKm)
+  return () => {
+    void queryClient.prefetchQuery({
+      queryKey: providerKeys.nearby(coordinates, radiusKm, false),
+      queryFn: () => providerService.nearby(coordinates, radiusKm, false, 24),
+      staleTime: 45_000,
+    })
+  }
+}
+
+/** Prefetch a single service listing by id. */
+export function usePrefetchService() {
+  const queryClient = useQueryClient()
+  return (id: string) => {
+    void queryClient.prefetchQuery({
+      queryKey: ['services', 'detail', id],
+      queryFn: () => providerService.listing(id),
+      staleTime: 45_000,
+    })
+  }
 }

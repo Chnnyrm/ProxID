@@ -43,6 +43,9 @@ class User(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default="both")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    onboarded: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     # Last known position, used to rank providers and jobs by distance.
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)

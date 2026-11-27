@@ -15,13 +15,15 @@ export function VerifiedBadge({ verified }: { verified: boolean }) {
     )
   }
   return (
-    <Badge
-      tone="verified"
-      title="This account has a Concordium zero-knowledge proof of personhood on file"
-    >
-      <BadgeCheck size={12} aria-hidden="true" />
-      Verified human
-    </Badge>
+    <span data-tour="tour-verified-badge" className="inline-flex">
+      <Badge
+        tone="verified"
+        title="This account has a Concordium zero-knowledge proof of personhood on file"
+      >
+        <BadgeCheck size={12} aria-hidden="true" />
+        Verified human
+      </Badge>
+    </span>
   )
 }
 
