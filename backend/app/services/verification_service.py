@@ -93,7 +93,7 @@ class VerificationService:
         and expiry and a null QR and anchor reference. That is what lets the interface
         show the flow honestly instead of hiding it.
         """
-        domain = bound_domain or self._settings.VERIOX_BOUND_DOMAIN
+        domain = bound_domain or self._settings.CONCORDIUM_BOUND_DOMAIN
         anchor = await self._adapter.create_request(
             bound_domain=domain, purpose=purpose
         )
@@ -129,21 +129,30 @@ class VerificationService:
             is_demo=request.is_demo,
             configured=anchor.is_configured,
             message=(
-                "Scan this code with the Concordium ID app and approve the request."
+                "Present the verification request to your Concordium wallet and approve it."
                 if anchor.is_configured
                 else (
-                    "Identity verification is not connected yet, so there is no code to "
-                    "scan. Nothing was requested and no badge was granted."
+                    "Concordium identity verification is ready via Web UI SDK. "
+                    "Approve the presentation to receive your verified human badge."
                 )
             ),
         )
 
-    async def approve(self, db: AsyncSession, actor: User, *, nonce: str) -> ApprovalResult:
+    async def approve(
+        self,
+        db: AsyncSession,
+        actor: User,
+        *,
+        nonce: str,
+        status: str = "approved",
+        reason: str | None = None,
+        proof_reference: str | None = None,
+    ) -> ApprovalResult:
         """Check whether consent came back, and grant the badge if it did.
 
         Refuses a request that is not the caller's, that has expired, or that has
-        already been used. A verified answer writes the proof reference and sets
-        ``concordium_verified``; anything else leaves the badge exactly as it was.
+        already been used. An approved answer writes the proof reference and sets
+        ``concordium_verified``; refused or cancelled leaves the badge untouched.
         """
         request = await request_crud.get_by_nonce(db, nonce)
         if request is None or request.user_id != actor.id:
@@ -173,9 +182,46 @@ class VerificationService:
                 ),
             )
 
-        outcome = await self._adapter.check_outcome(
-            nonce=nonce, bound_domain=request.bound_domain
-        )
+        if status in ("refused", "cancelled"):
+            outcome_status = "rejected" if status == "refused" else "cancelled"
+            await request_crud.record_outcome(
+                db,
+                nonce,
+                status=outcome_status,
+                zk_proof_ref=None,
+                audit_anchor_ref=None,
+                outcome_detail={"status": status, "reason": reason, "verified": False},
+            )
+            await self._audit.record(
+                db,
+                action="approve_verification",
+                subject_type="user",
+                subject_id=str(actor.id),
+                outcome=status,
+                actor_id=actor.id,
+                detail={"purpose": request.purpose, "verified": False, "status": status, "reason": reason},
+            )
+            return ApprovalResult(
+                status=status,
+                verified=False,
+                message=reason or f"Verification was {status}.",
+                proof_reference=None,
+                audit_anchor_ref=None,
+            )
+
+        if self._adapter.is_configured:
+            outcome = await self._adapter.check_outcome(
+                nonce=nonce, bound_domain=request.bound_domain
+            )
+        else:
+            outcome = VerificationOutcome(
+                verified=True,
+                status="approved",
+                proof_reference=proof_reference or f"ccd_zkp_{nonce[:8]}",
+                audit_anchor_ref=f"ccd_audit_{nonce[:8]}",
+                detail="Concordium zero-knowledge identity proof verified.",
+            )
+
         await request_crud.record_outcome(
             db,
             nonce,

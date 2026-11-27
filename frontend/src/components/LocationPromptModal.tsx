@@ -17,6 +17,7 @@ import { HouseIllustration } from '@/components/illustrations/CartoonIllustratio
 import { createPinIcon } from '@/lib/mapPins'
 import { useAuthStore } from '@/store/authStore'
 import { useLocationStore } from '@/store/locationStore'
+import { useTourStore } from '@/store/tourStore'
 
 const PROMPT_DISMISSED_KEY = 'proxid-location-prompt-dismissed'
 const DEFAULT_CENTER = { latitude: 6.5095, longitude: 3.3711 }
@@ -26,6 +27,7 @@ export function LocationPromptModal() {
   const isSignedIn = useAuthStore((state) => state.status) === 'signed-in'
   const updateProfile = useAuthStore((state) => state.updateProfile)
   const setCoordinates = useLocationStore((state) => state.setCoordinates)
+  const isTourActive = useTourStore((state) => state.isTourActive)
 
   const [isOpen, setIsOpen] = useState(false)
   const [mode, setMode] = useState<'prompt' | 'map'>('prompt')
@@ -147,7 +149,7 @@ export function LocationPromptModal() {
     }
   }
 
-  if (!isOpen) return null
+  if (!isOpen || isTourActive) return null
 
   return (
     <div

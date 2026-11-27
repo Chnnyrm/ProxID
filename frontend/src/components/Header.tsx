@@ -7,6 +7,7 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { MessageSquare } from 'lucide-react'
 
 import { AuthDialog } from '@/components/AuthDialog'
 import { Logo } from '@/components/Logo'
@@ -51,6 +52,14 @@ export function Header() {
               <span className="skeleton h-8 w-24 rounded-lg" aria-hidden="true" />
             ) : isSignedIn ? (
               <div className="flex items-center gap-2">
+                <Link
+                  to="/messages"
+                  className="rounded-lg border border-line bg-surface p-2 text-ink transition-colors hover:bg-sunken focus:outline-none focus-visible:ring-2 focus-visible:ring-structural"
+                  title="Messages and Job Rooms"
+                  aria-label="Messages and Job Rooms"
+                >
+                  <MessageSquare size={16} aria-hidden="true" />
+                </Link>
                 <NotificationBell />
                 <span className="max-w-[10rem] truncate text-xs font-semibold text-ink">
                   {displayName}

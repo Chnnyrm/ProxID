@@ -3,13 +3,13 @@
 Four services, each a boundary around one Concordium capability:
 
 - ``identity_service``  proves a provider is a unique human, behind an adapter that is
-                        either Veriox-backed or an honest stub.
+                        either Concordium-backed or an honest stub.
 - ``registry_service``  registers the agent and verifies its card with the five checks.
 - ``x402_service``      builds payment requirements and settles through the packaged
                         ``@x402/concordium`` Server and Facilitator.
 - ``audit_service``     keeps the Article 12 trail off chain and anchors only hashes.
 
-None of them is configured for live use. No node endpoint, no Veriox path and no
+None of them is configured for live use. No node endpoint, no live identity bridge path and no
 facilitator has been issued, so every method either returns a ``not_configured``
 result or raises ``NotConfiguredError``. Nothing here fabricates an address, a hash
 or a successful call, and nothing performs I/O toward Concordium.
@@ -17,6 +17,7 @@ or a successful call, and nothing performs I/O toward Concordium.
 
 from .audit_service import AUDIT_ACTIONS, AnchorResult, AuditService, payload_hash, safe_detail
 from .identity_service import (
+    ConcordiumIdentityAdapter,
     IdentityAdapter,
     StubIdentityAdapter,
     VerioxIdentityAdapter,

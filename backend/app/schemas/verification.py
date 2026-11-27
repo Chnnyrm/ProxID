@@ -20,6 +20,9 @@ class VerificationApproveIn(InputModel):
     """Report that consent came back for one request."""
 
     nonce: str = Field(min_length=8, max_length=64)
+    status: Literal["approved", "refused", "cancelled"] = "approved"
+    reason: str | None = None
+    proof_reference: str | None = None
 
 
 class VerificationOut(OutputModel):
