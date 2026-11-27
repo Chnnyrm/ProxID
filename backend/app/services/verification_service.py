@@ -85,6 +85,7 @@ class VerificationService:
         actor: User,
         *,
         purpose: str = "personhood",
+        bound_domain: str | None = None,
     ) -> VerificationView:
         """Create a single-use, domain-bound verification request and its QR.
 
@@ -92,8 +93,9 @@ class VerificationService:
         and expiry and a null QR and anchor reference. That is what lets the interface
         show the flow honestly instead of hiding it.
         """
+        domain = bound_domain or self._settings.VERIOX_BOUND_DOMAIN
         anchor = await self._adapter.create_request(
-            bound_domain=self._settings.VERIOX_BOUND_DOMAIN, purpose=purpose
+            bound_domain=domain, purpose=purpose
         )
         request = await request_crud.create(
             db,

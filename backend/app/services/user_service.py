@@ -53,6 +53,7 @@ def to_user_out(user: User) -> UserOut:
         neighbourhood=user.neighbourhood,
         concordium_verified=user.concordium_verified,
         cis8004_agent_id=user.cis8004_agent_id,
+        onboarded=user.onboarded,
         is_demo=user.is_demo,
         created_at=user.created_at,
     )
@@ -70,6 +71,7 @@ def to_me_out(user: User) -> MeOut:
         neighbourhood=user.neighbourhood,
         concordium_verified=user.concordium_verified,
         cis8004_agent_id=user.cis8004_agent_id,
+        onboarded=user.onboarded,
         is_demo=user.is_demo,
         created_at=user.created_at,
         email=user.email,

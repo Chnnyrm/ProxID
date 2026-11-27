@@ -9,8 +9,11 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Header } from '@/components/Header'
 import { ImageLightboxModal } from '@/components/ImageLightboxModal'
+import { LocationPromptModal } from '@/components/LocationPromptModal'
 import { Navigation } from '@/components/Navigation'
 import OnboardingOverlay from '@/components/OnboardingOverlay'
+import { PwaInstallPrompt } from '@/components/PwaInstallPrompt'
+import { RequireAuthModal } from '@/components/RequireAuthModal'
 import VoiceAssistant from '@/components/VoiceAssistant'
 import { registerServiceWorker, syncPushSubscription } from '@/lib/push'
 import { AgentPage } from '@/pages/AgentPage'
@@ -30,8 +33,16 @@ import { useAuthStore } from '@/store/authStore'
 export function App() {
   const bootstrap = useAuthStore((state) => state.bootstrap)
   const session = useAuthStore((state) => state.session)
+  const status = useAuthStore((state) => state.status)
   const location = useLocation()
   const isLanding = location.pathname === '/'
+
+  const isSignedIn = status === 'signed-in'
+  const ALLOWED_VOICE_PATHS = ['/agent', '/services', '/jobs', '/map', '/profile']
+  const isAllowedVoicePath =
+    ALLOWED_VOICE_PATHS.some(
+      (p) => location.pathname === p || location.pathname.startsWith(`${p}/`)
+    ) && !location.pathname.startsWith('/u/')
 
   useEffect(() => {
     void bootstrap()
@@ -52,8 +63,11 @@ export function App() {
       <Navigation />
       <Header />
       <OnboardingOverlay />
-      <VoiceAssistant />
+      {isSignedIn && isAllowedVoicePath && <VoiceAssistant />}
       <ImageLightboxModal />
+      <RequireAuthModal />
+      <LocationPromptModal />
+      <PwaInstallPrompt />
       <main className="flex-1 lg:pl-24 pb-20 lg:pb-0">
         <ErrorBoundary resetKey={location.pathname}>
           <Routes>

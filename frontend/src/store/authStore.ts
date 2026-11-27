@@ -31,6 +31,7 @@ interface AuthState {
     neighbourhood?: string
     latitude?: number
     longitude?: number
+    onboarded?: boolean
   }) => Promise<boolean>
   uploadAvatar: (file: File) => Promise<{ url: string; public_id: string } | null>
   logout: () => Promise<void>

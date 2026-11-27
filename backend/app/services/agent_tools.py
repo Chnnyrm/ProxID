@@ -134,7 +134,7 @@ def resolve_coordinates(context: ToolContext, args: dict[str, Any]) -> tuple[flo
         for name, coords in NEIGHBOURHOOD_COORDINATES.items():
             if name in n_lower:
                 return coords
-        return (6.5095, 3.3711)
+        return None, None
 
     return None, None
 
@@ -208,8 +208,6 @@ async def _tool_set_my_location(context: ToolContext, args: dict[str, Any]) -> d
                 if name in n_lower:
                     context.user.latitude, context.user.longitude = coords
                     break
-            if context.user.latitude is None:
-                context.user.latitude, context.user.longitude = (6.5095, 3.3711)
 
     await context.db.flush()
     return {

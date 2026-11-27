@@ -19,6 +19,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 import { TradespersonIllustration } from '@/components/illustrations/CartoonIllustrations'
 import { SafeImage } from '@/components/SafeImage'
+import { usePrefetchService } from '@/hooks/useProviders'
 import { distance as formatDistance, money } from '@/lib/format'
 import { useLightboxStore } from '@/store/lightboxStore'
 import type { ServiceListing } from '@/types/api'
@@ -31,6 +32,7 @@ export function ServiceCard({
   onBook?: (service: ServiceListing) => void
 }) {
   const navigate = useNavigate()
+  const prefetchService = usePrefetchService()
   const openLightbox = useLightboxStore((state) => state.openLightbox)
   const initials = (service.provider_display_name || 'PR').slice(0, 2).toUpperCase()
   const displayPrice = money(service.price, service.currency)
@@ -39,6 +41,8 @@ export function ServiceCard({
     <Link
       to={`/services/${service.id}`}
       data-testid="service-card"
+      onMouseEnter={() => prefetchService(service.id)}
+      onFocus={() => prefetchService(service.id)}
       className="group rounded-2xl border border-line bg-surface overflow-hidden shadow-xs flex flex-col justify-between transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-structural cursor-pointer text-left"
     >
       {/* 16:9 Listing Photo Banner */}

@@ -23,6 +23,7 @@ import {
 } from 'framer-motion'
 
 import { useAgentStore } from '@/store/agentStore'
+import { useAuthStore } from '@/store/authStore'
 import { agentAudio } from '@/lib/agentAudio'
 
 const BUTTON_RADIUS = 28
@@ -56,6 +57,7 @@ function TrailBlob({
 
 export default function VoiceAssistant() {
   const navigate = useNavigate()
+  const status = useAuthStore((state) => state.status)
   const { aiSettings } = useAgentStore()
 
   const [isListening, setIsListening] = useState(false)
@@ -255,6 +257,8 @@ export default function VoiceAssistant() {
       transition: { duration: 0.5, ease: 'easeOut' },
     })
   }
+
+  if (status !== 'signed-in') return null
 
   return (
     <>

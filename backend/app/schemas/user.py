@@ -64,6 +64,7 @@ class UserUpdate(TrimmedText):
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
     neighbourhood: str | None = Field(default=None, max_length=120)
+    onboarded: bool | None = Field(default=None)
 
 
 class SessionOut(OutputModel):
@@ -92,6 +93,7 @@ class UserOut(OutputModel):
     neighbourhood: str | None = None
     concordium_verified: bool
     cis8004_agent_id: str | None = None
+    onboarded: bool = False
     is_demo: bool
     created_at: datetime
 

@@ -155,7 +155,7 @@ class Settings(BaseSettings):
     VERIOX_BASE_URL: str = ""
     VERIOX_API_KEY: str = ""
     # Domain the verification request is bound to. Must be the deploying site.
-    VERIOX_BOUND_DOMAIN: str = "localhost"
+    VERIOX_BOUND_DOMAIN: str = "localhost:5173"
     # Resource paths for the two calls. Left empty on purpose: the demo site does not
     # publish its API, so these must come from the Veriox integration guide. An empty
     # path makes the adapter refuse to run instead of calling a guessed URL.
@@ -320,6 +320,15 @@ class Settings(BaseSettings):
             missing.append(
                 "DATABASE_URL (still points at localhost, which a deployment "
                 "cannot be)"
+            )
+        if self.APP_ENV == "production" and (
+            not self.VERIOX_BOUND_DOMAIN
+            or "localhost" in self.VERIOX_BOUND_DOMAIN.lower()
+            or "127.0.0.1" in self.VERIOX_BOUND_DOMAIN
+        ):
+            missing.append(
+                "VERIOX_BOUND_DOMAIN (still points at localhost in production; "
+                "must be bound to the deployment origin e.g. proxid-psi.vercel.app)"
             )
         if missing:
             detail = ", ".join(missing)

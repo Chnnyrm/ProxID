@@ -3,7 +3,7 @@
  * Pure ASCII.
  */
 
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 
 import { authService } from '@/services/authService'
 import type { PublicProfile } from '@/types/api'
@@ -14,5 +14,6 @@ export function usePublicProfile(username: string | undefined) {
     queryFn: () => authService.publicProfile(username as string),
     enabled: Boolean(username && username.trim().length > 0),
     staleTime: 60 * 1000,
+    placeholderData: keepPreviousData,
   })
 }

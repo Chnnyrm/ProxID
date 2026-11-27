@@ -18,13 +18,14 @@ import { HouseIllustration } from '@/components/illustrations/CartoonIllustratio
 import { SafeImage } from '@/components/SafeImage'
 import { Badge } from '@/components/ui/badge'
 import { useAuth } from '@/hooks/useAuth'
-import { useAppliedJobIds, useApplyJob } from '@/hooks/useJobs'
+import { useAppliedJobIds, useApplyJob, usePrefetchJob } from '@/hooks/useJobs'
 import { distance, money, statusLabel, timeAgo } from '@/lib/format'
 import { useLightboxStore } from '@/store/lightboxStore'
 import type { Job } from '@/types/api'
 
 export function JobCard({ job }: { job: Job }) {
   const navigate = useNavigate()
+  const prefetchJob = usePrefetchJob()
   const { isSignedIn, user } = useAuth()
   const openLightbox = useLightboxStore((state) => state.openLightbox)
   const appliedQuery = useAppliedJobIds(isSignedIn)
@@ -43,7 +44,11 @@ export function JobCard({ job }: { job: Job }) {
     e.preventDefault()
     e.stopPropagation()
     if (!isSignedIn) {
-      navigate('/login')
+      window.dispatchEvent(
+        new CustomEvent('proxid-require-auth', {
+          detail: { action: 'apply for this job' },
+        })
+      )
       return
     }
     setShowApplyModal(true)
@@ -70,6 +75,8 @@ export function JobCard({ job }: { job: Job }) {
       <Link
         to={`/jobs/${job.id}`}
         data-testid="job-card"
+        onMouseEnter={() => prefetchJob(job.id)}
+        onFocus={() => prefetchJob(job.id)}
         className="group animate-fade-rise rounded-2xl border border-line bg-surface p-4 shadow-xs transition-all duration-200 hover:-translate-y-1 hover:shadow-md hover:border-structural flex flex-col justify-between gap-3 text-left"
       >
         <div className="flex items-start gap-3.5">

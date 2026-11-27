@@ -72,6 +72,14 @@ export function ServiceDetailPage() {
   }
 
   const handleHire = () => {
+    if (!isSignedIn) {
+      window.dispatchEvent(
+        new CustomEvent('proxid-require-auth', {
+          detail: { action: 'hire this verified provider' },
+        })
+      )
+      return
+    }
     setIsHiring(true)
     setTimeout(() => {
       setIsHiring(false)

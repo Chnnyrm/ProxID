@@ -5,7 +5,7 @@
  * asking for different shapes under one key is how a list renders an object.
  */
 
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import type { Coordinates, JobCreateBody } from '@/lib/contracts'
 import { jobService } from '@/services/jobService'
@@ -69,7 +69,11 @@ export function useSearchJobs(params: {
 
 /** The open-jobs list. */
 export function useBrowseJobs() {
-  return useQuery({ queryKey: jobKeys.browse, queryFn: () => jobService.browse(30, 0) })
+  return useQuery({
+    queryKey: jobKeys.browse,
+    queryFn: () => jobService.browse(30, 0),
+    placeholderData: keepPreviousData,
+  })
 }
 
 /** Open jobs around the current coordinate. */
@@ -79,6 +83,7 @@ export function useNearbyJobs() {
   return useQuery({
     queryKey: jobKeys.nearby(coordinates, radiusKm),
     queryFn: () => jobService.nearby(coordinates, radiusKm, 40),
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -88,6 +93,7 @@ export function useMyJobs(enabled: boolean) {
     queryKey: jobKeys.mine,
     queryFn: () => jobService.mine(),
     enabled,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -97,6 +103,7 @@ export function useJob(id: string | undefined) {
     queryKey: jobKeys.detail(id ?? ''),
     queryFn: () => jobService.get(id as string),
     enabled: Boolean(id),
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -144,4 +151,28 @@ export function useSendMessage(jobId: string) {
       void queryClient.invalidateQueries({ queryKey: jobKeys.room(jobId) })
     },
   })
+}
+
+/** Prefetch a single job by id. */
+export function usePrefetchJob() {
+  const queryClient = useQueryClient()
+  return (id: string) => {
+    void queryClient.prefetchQuery({
+      queryKey: jobKeys.detail(id),
+      queryFn: () => jobService.get(id),
+      staleTime: 45_000,
+    })
+  }
+}
+
+/** Prefetch the browse jobs list. */
+export function usePrefetchJobs() {
+  const queryClient = useQueryClient()
+  return () => {
+    void queryClient.prefetchQuery({
+      queryKey: jobKeys.browse,
+      queryFn: () => jobService.browse(),
+      staleTime: 45_000,
+    })
+  }
 }

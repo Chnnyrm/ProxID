@@ -115,11 +115,17 @@ export function JobsPage() {
             <MapIcon size={14} aria-hidden="true" />
             <span>Map</span>
           </Link>
-          <Button intent="secondary" size="sm" onClick={() => void requestDeviceLocation()}>
-            <MapPin size={14} aria-hidden="true" />
-            <span>Nearby</span>
-          </Button>
-          <Button size="sm" onClick={() => setShowForm((open) => !open)}>
+          <Button
+            size="sm"
+            data-tour="tour-post-job"
+            onClick={() => {
+              if (!isSignedIn) {
+                window.dispatchEvent(new CustomEvent('proxid-require-auth', { detail: { action: 'post an open job' } }))
+                return
+              }
+              setShowForm((open) => !open)
+            }}
+          >
             <Plus size={15} aria-hidden="true" />
             <span>Post Job</span>
           </Button>
