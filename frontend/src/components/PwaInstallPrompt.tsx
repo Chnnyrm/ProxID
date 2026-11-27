@@ -11,6 +11,7 @@ import { Download, Share, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { AgentCharacterIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { useTourStore } from '@/store/tourStore'
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -23,6 +24,7 @@ export function PwaInstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
   const [isIos, setIsIos] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
+  const isTourActive = useTourStore((state) => state.isTourActive)
 
   useEffect(() => {
     // Check if already in standalone mode
@@ -75,7 +77,7 @@ export function PwaInstallPrompt() {
     setIsVisible(false)
   }
 
-  if (!isVisible) return null
+  if (!isVisible || isTourActive) return null
 
   return (
     <div

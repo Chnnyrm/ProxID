@@ -103,6 +103,8 @@ class Container:
                 messages=self.messages,
                 payments=self.payments,
                 users=self.users,
+                categories=self.categories,
+                verification=self.verification,
             ),
         )
 

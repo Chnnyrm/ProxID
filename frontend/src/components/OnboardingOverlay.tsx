@@ -1,28 +1,24 @@
 /**
- * OnboardingOverlay.tsx - Interactive spotlight onboarding tour.
+ * OnboardingOverlay.tsx - Interactive spotlight onboarding tour & Tour Choice selector.
  * Pure ASCII, palette compliant (#474329 ink, #F0E5DB sand, #FC75B4 accent).
  *
  * Requirements:
  * - Only run for authenticated sessions (status === 'signed-in' && user && !user.onboarded).
  * - Never run on /, /login, /register, or /u/:username.
- * - Store "seen" against the account on the backend (user.onboarded), not localStorage.
- * - Introduction screen: ProxID in 2 sentences and what proxidAI does.
- * - 5 story scenes with Amaka and Tunde:
- *   1. "Amaka needs a plumber today." -> how to find one near you.
- *   2. "She is not sure who to trust." -> verified badge and what it means.
- *   3. "She would rather ask." -> voice agent and the mic.
- *   4. "Tunde has a van and wants work." -> publish service / post job.
- *   5. "The money is held until the job is done." -> escrow and release.
- * - Spotlight cutout dimming background, arrow, pulse ring, Back, Next/Finish, Skip.
+ * - Store "seen" against the account on the backend (user.onboarded).
+ * - On first sign-in: offer choice between "A Quick Tour" (5 steps) and "See the Whole Story" (8 scenes).
+ * - Scroll target into view, check bounding rect visibility before placing spotlight.
+ * - Suppress competing overlays via useTourStore.
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BookOpen, Sparkles, X, Zap } from 'lucide-react'
 
-import { useAuthStore } from '@/store/authStore'
 import { AgentCharacterIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { useAuthStore } from '@/store/authStore'
+import { useTourStore } from '@/store/tourStore'
 
 interface TourStep {
   route: string
@@ -38,7 +34,7 @@ const TOUR_STEPS: TourStep[] = [
     target: '[data-tour="nav-services"]',
     title: 'LOCAL SEARCH',
     story: 'Amaka needs a plumber today.',
-    lesson: 'Here is how you find verified providers near you within your custom radius.',
+    lesson: 'Find verified providers and jobs near you within your custom radius circle.',
   },
   {
     route: '/services',
@@ -59,7 +55,7 @@ const TOUR_STEPS: TourStep[] = [
     target: '[data-tour="tour-post-job"]',
     title: 'PUBLISHING WORK',
     story: 'Tunde has a van and wants work.',
-    lesson: 'Here is how you publish a service listing or post an open job to get found.',
+    lesson: 'Publish a service listing or post an open job to get found by nearby matches.',
   },
   {
     route: '/agent',
@@ -72,7 +68,7 @@ const TOUR_STEPS: TourStep[] = [
 
 const FORBIDDEN_ROUTES = ['/', '/login', '/register']
 
-export default function OnboardingOverlay() {
+export function OnboardingOverlay() {
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -80,11 +76,14 @@ export default function OnboardingOverlay() {
   const user = useAuthStore((state) => state.user)
   const updateProfile = useAuthStore((state) => state.updateProfile)
 
+  const isTourActive = useTourStore((state) => state.isTourActive)
+  const tourType = useTourStore((state) => state.tourType)
+  const setTourActive = useTourStore((state) => state.setTourActive)
+
   const [open, setOpen] = useState(false)
-  const [showIntro, setShowIntro] = useState(true)
+  const [showChoice, setShowChoice] = useState(true)
   const [stepIndex, setStepIndex] = useState(0)
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null)
-  const [isNavigating, setIsNavigating] = useState(false)
 
   // Check route validity
   const isPublicOrForbidden =
@@ -93,80 +92,96 @@ export default function OnboardingOverlay() {
     location.pathname.startsWith('/login') ||
     location.pathname.startsWith('/register')
 
-  // Auto-launch only for authenticated users who have not onboarded yet on internal app routes
+  // Auto-launch choice modal for first-time authenticated users on app routes
   useEffect(() => {
-    if (status === 'signed-in' && user && !user.onboarded && !isPublicOrForbidden) {
+    if (status === 'signed-in' && user && !user.onboarded && !isPublicOrForbidden && !isTourActive) {
       setOpen(true)
-      setShowIntro(true)
+      setShowChoice(true)
       setStepIndex(0)
+      setTourActive(true, 'quick')
     }
-  }, [status, user, isPublicOrForbidden])
+  }, [status, user, isPublicOrForbidden, isTourActive, setTourActive])
 
   // Listen for manual trigger to replay tour
   useEffect(() => {
-    const handleReopen = () => {
-      setShowIntro(true)
-      setStepIndex(0)
-      setOpen(true)
+    const handleReopen = (e?: Event) => {
+      const type = (e as CustomEvent<{ type?: 'quick' | 'story' }>)?.detail?.type
+      if (type === 'quick') {
+        setShowChoice(false)
+        setStepIndex(0)
+        setOpen(true)
+        setTourActive(true, 'quick')
+      } else if (type === 'story') {
+        setShowChoice(false)
+        setOpen(false)
+        useTourStore.getState().setStoryScene(0)
+        setTourActive(true, 'story')
+      } else {
+        setShowChoice(true)
+        setStepIndex(0)
+        setOpen(true)
+        setTourActive(true, 'quick')
+      }
     }
     window.addEventListener('open-onboarding', handleReopen)
     return () => window.removeEventListener('open-onboarding', handleReopen)
-  }, [])
+  }, [setTourActive])
 
   const activeStep = TOUR_STEPS[stepIndex] ?? TOUR_STEPS[0]
 
-  // Find and measure target element
+  // Find and measure target element with scroll and visibility verification
   const measureTarget = useCallback(() => {
-    if (showIntro) {
+    if (showChoice || !open || tourType !== 'quick') {
       setTargetRect(null)
       return
     }
+
     let el = document.querySelector(activeStep.target)
-    // Fallback if target element not found on page
     if (!el && activeStep.target === '[data-tour="tour-verified-badge"]') {
       el = document.querySelector('[data-tour="nav-services"]')
     }
+
     if (el) {
-      const rect = el.getBoundingClientRect()
-      if (rect.top < 0 || rect.bottom > window.innerHeight) {
-        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-      }
-      setTargetRect(el.getBoundingClientRect())
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      window.setTimeout(() => {
+        const rect = el.getBoundingClientRect()
+        if (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.bottom >= 0 &&
+          rect.top <= window.innerHeight
+        ) {
+          setTargetRect(rect)
+        } else {
+          setTargetRect(null)
+        }
+      }, 150)
     } else {
       setTargetRect(null)
     }
-  }, [showIntro, activeStep])
+  }, [showChoice, open, tourType, activeStep])
 
   // Handle route navigation when step changes
   useEffect(() => {
-    if (!open || showIntro) return
+    if (!open || showChoice || tourType !== 'quick') return
 
     if (location.pathname !== activeStep.route) {
-      setIsNavigating(true)
       navigate(activeStep.route)
       const timer = window.setTimeout(() => {
         measureTarget()
-        setIsNavigating(false)
-      }, 350)
-      return () => {
-        clearTimeout(timer)
-        setIsNavigating(false)
-      }
+      }, 300)
+      return () => clearTimeout(timer)
     } else {
       const timer = window.setTimeout(() => {
         measureTarget()
-        setIsNavigating(false)
       }, 100)
-      return () => {
-        clearTimeout(timer)
-        setIsNavigating(false)
-      }
+      return () => clearTimeout(timer)
     }
-  }, [open, showIntro, stepIndex, activeStep, location.pathname, navigate, measureTarget])
+  }, [open, showChoice, tourType, stepIndex, activeStep, location.pathname, navigate, measureTarget])
 
-  // Resize and scroll listener
+  // Window resize & scroll listeners
   useEffect(() => {
-    if (!open || showIntro) return
+    if (!open || showChoice || tourType !== 'quick') return
     const handleUpdate = () => measureTarget()
     window.addEventListener('resize', handleUpdate)
     window.addEventListener('scroll', handleUpdate, true)
@@ -174,11 +189,12 @@ export default function OnboardingOverlay() {
       window.removeEventListener('resize', handleUpdate)
       window.removeEventListener('scroll', handleUpdate, true)
     }
-  }, [open, showIntro, measureTarget])
+  }, [open, showChoice, tourType, measureTarget])
 
   const finishTour = () => {
     setOpen(false)
-    setShowIntro(false)
+    setShowChoice(false)
+    setTourActive(false, null)
     if (status === 'signed-in') {
       void updateProfile({ onboarded: true })
     }
@@ -194,9 +210,16 @@ export default function OnboardingOverlay() {
     return () => window.removeEventListener('keydown', onKey)
   }, [open])
 
-  const startTourFromIntro = () => {
-    setShowIntro(false)
+  const handleStartQuickTour = () => {
+    setShowChoice(false)
     setStepIndex(0)
+    setTourActive(true, 'quick')
+  }
+
+  const handleStartStoryTour = () => {
+    setOpen(false)
+    setShowChoice(false)
+    setTourActive(true, 'story')
   }
 
   const nextStep = () => {
@@ -213,14 +236,14 @@ export default function OnboardingOverlay() {
     }
   }
 
-  if (!open || isPublicOrForbidden) return null
+  if (!open || isPublicOrForbidden || tourType === 'story') return null
 
   // Calculate tooltip placement for spotlight steps
   const tooltipWidth = Math.min(360, window.innerWidth - 32)
-  let tooltipTop = 100
-  let tooltipLeft = 20
+  let tooltipTop = window.innerHeight / 2 - 100
+  let tooltipLeft = (window.innerWidth - tooltipWidth) / 2
   let arrowPlacement: 'top' | 'bottom' = 'top'
-  let arrowLeft = 40
+  let arrowLeft = tooltipWidth / 2
 
   if (targetRect) {
     const spaceBelow = window.innerHeight - targetRect.bottom
@@ -234,210 +257,275 @@ export default function OnboardingOverlay() {
       arrowPlacement = 'bottom'
     }
 
-    const targetCenterX = targetRect.left + targetRect.width / 2
-    tooltipLeft = Math.max(16, Math.min(window.innerWidth - tooltipWidth - 16, targetCenterX - tooltipWidth / 2))
-    arrowLeft = Math.max(16, Math.min(tooltipWidth - 24, targetCenterX - tooltipLeft))
-  } else {
-    tooltipTop = window.innerHeight / 2 - 110
-    tooltipLeft = window.innerWidth / 2 - tooltipWidth / 2
+    tooltipLeft = Math.max(
+      16,
+      Math.min(
+        window.innerWidth - tooltipWidth - 16,
+        targetRect.left + targetRect.width / 2 - tooltipWidth / 2,
+      ),
+    )
+    arrowLeft = Math.max(
+      24,
+      Math.min(tooltipWidth - 24, targetRect.left + targetRect.width / 2 - tooltipLeft),
+    )
   }
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-[1000] overflow-hidden select-none">
-        {/* Intro Dialog Screen */}
-        {showIntro ? (
-          <div className="fixed inset-0 z-[1002] flex items-center justify-center p-4 bg-ink/70 backdrop-blur-xs">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-2xl border border-structural bg-surface p-6 shadow-2xl text-center space-y-4"
-            >
-              <div className="flex justify-center">
-                <AgentCharacterIllustration size={72} />
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Welcome and Onboarding Tour"
+      className="fixed inset-0 z-[1100] select-none"
+    >
+      {showChoice ? (
+        /* First-time Choice Modal between Quick Tour and Full Story */
+        <div className="fixed inset-0 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            className="w-full max-w-lg rounded-2xl border-2 border-structural bg-surface p-6 shadow-2xl space-y-5"
+          >
+            <div className="flex items-start justify-between border-b border-line pb-3">
+              <div className="flex items-center gap-3">
+                <AgentCharacterIllustration size={44} className="shrink-0" />
+                <div>
+                  <h1 className="font-display text-xl uppercase tracking-tight text-ink font-bold">
+                    Welcome to ProxID
+                  </h1>
+                  <p className="text-xs text-muted">
+                    Concordium zero-knowledge proximity index for verified human local work.
+                  </p>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <span className="font-mono text-[10px] uppercase tracking-wider text-muted font-bold">
-                  WELCOME TO PROXID
-                </span>
-                <h2 className="text-xl font-bold font-display uppercase text-ink">
-                  Your Proximity Trust Index
-                </h2>
-              </div>
-              <p className="text-xs sm:text-sm text-ink leading-relaxed font-medium">
-                ProxID connects you to verified local providers in your neighborhood on Concordium.
-                proxidAI is your personal scout that discovers work, matches requests, and protects your spending with consent.
-              </p>
-              <div className="flex items-center justify-center gap-3 pt-2">
-                <button
-                  type="button"
-                  onClick={finishTour}
-                  className="rounded-lg border border-line bg-surface px-4 py-2 text-xs font-semibold text-muted hover:text-ink hover:bg-sunken transition-colors"
-                >
-                  Skip Tour
-                </button>
-                <button
-                  type="button"
-                  onClick={startTourFromIntro}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-structural bg-ink px-5 py-2 text-xs font-bold text-surface hover:opacity-90 active:scale-95 transition-all shadow-xs"
-                >
-                  <span>Start Interactive Tour</span>
-                  <ArrowRight size={13} />
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        ) : (
-          <>
-            {/* SVG Spotlight Cutout Mask */}
-            <svg
-              className="fixed inset-0 pointer-events-none z-[1000] w-full h-full"
-              aria-hidden="true"
-            >
-              <defs>
-                <mask id="proxid-spotlight-mask">
-                  <rect width="100%" height="100%" fill="white" />
-                  {targetRect && (
-                    <rect
-                      x={targetRect.left - 6}
-                      y={targetRect.top - 6}
-                      width={targetRect.width + 12}
-                      height={targetRect.height + 12}
-                      rx={12}
-                      fill="black"
-                    />
-                  )}
-                </mask>
-              </defs>
-              <rect
-                width="100%"
-                height="100%"
-                fill="#1C1B12"
-                fillOpacity="0.75"
-                mask="url(#proxid-spotlight-mask)"
-              />
-            </svg>
-
-            {/* Pulse Ring directly around the target element */}
-            {targetRect && (
-              <div
-                className="fixed pointer-events-none z-[1001] rounded-2xl border-2 border-accent animate-pulse ring-4 ring-accent/30 transition-all duration-300"
-                style={{
-                  top: targetRect.top - 6,
-                  left: targetRect.left - 6,
-                  width: targetRect.width + 12,
-                  height: targetRect.height + 12,
-                }}
-              />
-            )}
-
-            {/* Tooltip Card anchored near target */}
-            <motion.div
-              key={stepIndex}
-              initial={{ opacity: 0, y: arrowPlacement === 'top' ? -8 : 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed z-[1002] rounded-2xl border border-structural bg-surface p-5 shadow-2xl"
-              style={{
-                top: tooltipTop,
-                left: tooltipLeft,
-                width: tooltipWidth,
-              }}
-            >
-              {/* Pointer Triangle / Arrow */}
-              {targetRect && (
-                <div
-                  className={`absolute h-0 w-0 border-x-8 border-x-transparent ${
-                    arrowPlacement === 'top'
-                      ? '-top-2 border-b-8 border-b-surface'
-                      : '-bottom-2 border-t-8 border-t-surface'
-                  }`}
-                  style={{ left: arrowLeft - 8 }}
-                />
-              )}
-
-              {/* Close / Skip button */}
               <button
                 type="button"
                 onClick={finishTour}
-                className="absolute right-3.5 top-3.5 rounded-lg p-1 text-muted hover:text-ink hover:bg-sunken transition-colors"
-                title="Skip tour"
-                aria-label="Skip tour"
+                className="rounded-lg p-1 text-muted hover:text-ink hover:bg-sunken transition-colors"
+                title="Dismiss"
+                aria-label="Dismiss tour"
               >
-                <X size={15} />
+                <X size={18} />
               </button>
+            </div>
 
-              {/* Step Counter */}
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted">
-                  Step {stepIndex + 1} of {TOUR_STEPS.length}
-                </span>
-                <span className="h-1 w-1 rounded-full bg-accent" />
-                <span className="font-mono text-[10px] uppercase tracking-wider text-ink font-semibold">
-                  {activeStep.title}
-                </span>
-              </div>
-
-              {/* Story Scenario & Explanation */}
-              <div className="mt-2.5 space-y-1">
-                <p className="text-sm font-bold text-ink leading-snug">
-                  &ldquo;{activeStep.story}&rdquo;
-                </p>
-                <p className="text-xs text-muted leading-relaxed">
-                  {activeStep.lesson}
-                </p>
-              </div>
-
-              {/* Progress dots */}
-              <div className="mt-4 flex items-center gap-1.5">
-                {TOUR_STEPS.map((_, i) => (
-                  <div
-                    key={i}
-                    className={`h-1.5 rounded-full transition-all duration-200 ${
-                      i === stepIndex ? 'w-6 bg-ink' : 'w-2 bg-line'
-                    }`}
-                  />
-                ))}
-              </div>
-
-              {/* Navigation Controls: Back, Skip, Next */}
-              <div className="mt-4 flex items-center justify-between border-t border-line pt-3.5">
-                <div className="flex items-center gap-2">
-                  {stepIndex > 0 ? (
-                    <button
-                      type="button"
-                      onClick={prevStep}
-                      className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-xs font-bold text-ink hover:bg-sunken transition-colors shadow-xs"
-                    >
-                      <ArrowLeft size={12} />
-                      <span>Back</span>
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={finishTour}
-                      className="text-xs font-semibold text-muted hover:text-ink transition-colors px-1"
-                    >
-                      Skip
-                    </button>
-                  )}
+            {/* 2 Choice Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              {/* Option 1: Quick Interactive Tour */}
+              <div
+                onClick={handleStartQuickTour}
+                className="group cursor-pointer rounded-xl border border-line bg-surface p-4 hover:border-structural hover:bg-sunken/40 transition-all duration-150 flex flex-col justify-between space-y-3"
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-page border border-line text-ink">
+                      <Zap size={16} className="text-ink" />
+                    </span>
+                    <span className="font-display text-sm font-bold uppercase tracking-wide text-ink">
+                      A Quick Tour
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted leading-relaxed">
+                    5 interactive spotlights through the app: search, verified badge, voice mic, publishing, and escrow.
+                  </p>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={nextStep}
-                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-structural bg-ink px-4 text-xs font-bold text-surface hover:opacity-90 active:scale-95 transition-all shadow-xs"
-                >
-                  <span>{stepIndex < TOUR_STEPS.length - 1 ? 'Next' : 'Finish'}</span>
-                  <ArrowRight size={12} />
-                </button>
+                <div className="flex items-center justify-between text-xs font-semibold text-ink pt-2 border-t border-line">
+                  <span className="font-mono text-[10px] text-muted">~40 SECONDS</span>
+                  <span className="group-hover:translate-x-1 transition-transform flex items-center gap-1">
+                    Start <ArrowRight size={12} />
+                  </span>
+                </div>
               </div>
-            </motion.div>
-          </>
-        )}
-      </div>
-    </AnimatePresence>
+
+              {/* Option 2: Full Cartoon Story Tour */}
+              <div
+                onClick={handleStartStoryTour}
+                className="group cursor-pointer rounded-xl border border-structural bg-accent/10 p-4 hover:border-accent hover:bg-accent/20 transition-all duration-150 flex flex-col justify-between space-y-3"
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="p-1.5 rounded-lg bg-surface border border-structural text-accent-ink">
+                      <BookOpen size={16} className="text-accent-ink" />
+                    </span>
+                    <span className="font-display text-sm font-bold uppercase tracking-wide text-ink">
+                      See the Story
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted leading-relaxed">
+                    An 8-scene paper-craft cartoon demo following Amaka, Tunde &amp; proxidAI from leaking tap to on-chain settlement.
+                  </p>
+                </div>
+                <div className="flex items-center justify-between text-xs font-semibold text-accent-ink pt-2 border-t border-line">
+                  <span className="font-mono text-[10px] text-muted">GUIDED DEMO</span>
+                  <span className="group-hover:translate-x-1 transition-transform flex items-center gap-1 font-bold">
+                    Watch <ArrowRight size={12} />
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center pt-1 border-t border-line">
+              <button
+                type="button"
+                onClick={finishTour}
+                className="text-xs text-muted hover:text-ink hover:underline"
+              >
+                Skip for now
+              </button>
+              <span className="font-mono text-[10px] text-muted uppercase">
+                REPLAY ANYTIME FROM YOUR PROFILE
+              </span>
+            </div>
+          </motion.div>
+        </div>
+      ) : (
+        <>
+          {/* SVG Spotlight Cutout Mask */}
+          <svg
+            className="fixed inset-0 pointer-events-none z-[1000] w-full h-full"
+            aria-hidden="true"
+          >
+            <defs>
+              <mask id="proxid-spotlight-mask">
+                <rect width="100%" height="100%" fill="white" />
+                {targetRect && (
+                  <rect
+                    x={targetRect.left - 6}
+                    y={targetRect.top - 6}
+                    width={targetRect.width + 12}
+                    height={targetRect.height + 12}
+                    rx={12}
+                    fill="black"
+                  />
+                )}
+              </mask>
+            </defs>
+            <rect
+              width="100%"
+              height="100%"
+              fill="#1C1B12"
+              fillOpacity="0.75"
+              mask="url(#proxid-spotlight-mask)"
+            />
+          </svg>
+
+          {/* Pulse Ring directly around the target element */}
+          {targetRect && (
+            <div
+              className="fixed pointer-events-none z-[1001] rounded-2xl border-2 border-accent animate-pulse ring-4 ring-accent/30 transition-all duration-300"
+              style={{
+                top: targetRect.top - 6,
+                left: targetRect.left - 6,
+                width: targetRect.width + 12,
+                height: targetRect.height + 12,
+              }}
+            />
+          )}
+
+          {/* Tooltip Card anchored near target */}
+          <motion.div
+            key={stepIndex}
+            initial={{ opacity: 0, y: arrowPlacement === 'top' ? -8 : 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed z-[1002] rounded-2xl border border-structural bg-surface p-5 shadow-2xl"
+            style={{
+              top: tooltipTop,
+              left: tooltipLeft,
+              width: tooltipWidth,
+            }}
+          >
+            {/* Pointer Triangle / Arrow */}
+            {targetRect && (
+              <div
+                className={`absolute h-0 w-0 border-x-8 border-x-transparent ${
+                  arrowPlacement === 'top'
+                    ? '-top-2 border-b-8 border-b-surface'
+                    : '-bottom-2 border-t-8 border-t-surface'
+                }`}
+                style={{ left: arrowLeft - 8 }}
+              />
+            )}
+
+            {/* Close / Skip button */}
+            <button
+              type="button"
+              onClick={finishTour}
+              className="absolute right-3.5 top-3.5 rounded-lg p-1 text-muted hover:text-ink hover:bg-sunken transition-colors"
+              title="Skip tour"
+              aria-label="Skip tour"
+            >
+              <X size={15} />
+            </button>
+
+            {/* Step Counter */}
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] font-bold uppercase tracking-wider text-muted">
+                Step {stepIndex + 1} of {TOUR_STEPS.length}
+              </span>
+              <span className="h-1 w-1 rounded-full bg-accent" />
+              <span className="font-mono text-[10px] uppercase tracking-wider text-ink font-semibold">
+                {activeStep.title}
+              </span>
+            </div>
+
+            {/* Story Scenario & Explanation */}
+            <div className="mt-2.5 space-y-1">
+              <p className="text-sm font-bold text-ink leading-snug">
+                &ldquo;{activeStep.story}&rdquo;
+              </p>
+              <p className="text-xs text-muted leading-relaxed">
+                {activeStep.lesson}
+              </p>
+            </div>
+
+            {/* Progress dots */}
+            <div className="mt-4 flex items-center gap-1.5">
+              {TOUR_STEPS.map((_, i) => (
+                <div
+                  key={i}
+                  className={`h-1.5 rounded-full transition-all duration-200 ${
+                    i === stepIndex ? 'w-6 bg-ink' : 'w-2 bg-line'
+                  }`}
+                />
+              ))}
+            </div>
+
+            {/* Navigation Controls: Back, Skip, Next */}
+            <div className="mt-4 flex items-center justify-between border-t border-line pt-3.5">
+              <div className="flex items-center gap-2">
+                {stepIndex > 0 ? (
+                  <button
+                    type="button"
+                    onClick={prevStep}
+                    className="inline-flex h-8 items-center gap-1 rounded-lg border border-line bg-surface px-2.5 text-xs font-bold text-ink hover:bg-sunken transition-colors shadow-xs"
+                  >
+                    <ArrowLeft size={12} />
+                    <span>Back</span>
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={finishTour}
+                    className="text-xs font-semibold text-muted hover:text-ink transition-colors px-1"
+                  >
+                    Skip
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={nextStep}
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-structural bg-ink px-4 text-xs font-bold text-surface hover:opacity-90 active:scale-95 transition-all shadow-xs"
+              >
+                <span>{stepIndex < TOUR_STEPS.length - 1 ? 'Next' : 'Finish'}</span>
+                <ArrowRight size={12} />
+              </button>
+            </div>
+          </motion.div>
+        </>
+      )}
+    </div>
   )
 }

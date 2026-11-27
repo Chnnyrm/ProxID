@@ -87,6 +87,16 @@ export function useNearbyJobs() {
   })
 }
 
+/** All open jobs across the platform for map transparency without radius filtering. */
+export function useMapAllJobs() {
+  const coordinates = useLocationStore((state) => state.coordinates)
+  return useQuery({
+    queryKey: ['jobs', 'map-all', coordinates.latitude, coordinates.longitude],
+    queryFn: () => jobService.nearby(coordinates, 0, 100),
+    placeholderData: keepPreviousData,
+  })
+}
+
 /** The caller's own jobs. Disabled while signed out, so no request 401s. */
 export function useMyJobs(enabled: boolean) {
   return useQuery({

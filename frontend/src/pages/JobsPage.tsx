@@ -11,8 +11,10 @@ import { Briefcase, Clock, Filter, Map as MapIcon, MapPin, Plus, Search, Sliders
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { CategorySelect } from '@/components/CategorySelect'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
+import { ImageMultiUpload } from '@/components/ImageMultiUpload'
 import { JobCard } from '@/components/JobCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -30,7 +32,7 @@ type Tab = 'nearby' | 'browse' | 'mine'
 type SortOrder = 'newest' | 'price_high' | 'price_low'
 
 export function JobsPage() {
-  const { isSignedIn } = useAuth()
+  const { isSignedIn, isLoading } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [tab, setTab] = useState<Tab>('nearby')
   const [searchQuery, setSearchQuery] = useState('')
@@ -42,11 +44,20 @@ export function JobsPage() {
   // Auto-open compose form if navigating with ?compose=1 (PWA shortcut)
   useEffect(() => {
     if (searchParams.get('compose') === '1') {
-      setShowForm(true)
+      if (isLoading) return
+      if (!isSignedIn) {
+        window.dispatchEvent(
+          new CustomEvent('proxid-require-auth', {
+            detail: { action: 'post a job' },
+          })
+        )
+      } else {
+        setShowForm(true)
+      }
       searchParams.delete('compose')
       setSearchParams(searchParams, { replace: true })
     }
-  }, [searchParams, setSearchParams])
+  }, [searchParams, setSearchParams, isSignedIn, isLoading])
 
   const coordinates = useLocationStore((state) => state.coordinates)
   const radiusKm = useLocationStore((state) => state.radiusKm)
@@ -449,6 +460,7 @@ function PostJobForm({
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [images, setImages] = useState<string[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
 
@@ -471,10 +483,13 @@ function PostJobForm({
         category_id: categoryId || undefined,
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
+        image_urls: images,
+        image_url: images[0] || undefined,
       })
       setTitle('')
       setDescription('')
       setPrice('')
+      setImages([])
       onDone()
     } catch {
       // error handled by mutation
@@ -503,27 +518,14 @@ function PostJobForm({
             required
           />
 
-          {categories.length > 0 ? (
-            <div>
-              <label htmlFor="job-category-select" className="mb-1 block text-sm font-medium text-ink">
-                Category
-              </label>
-              <select
-                id="job-category-select"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                disabled={submitting}
-                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:outline-none"
-              >
-                <option value="">Select a category (optional)</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
+          <CategorySelect
+            id="job-category-select"
+            value={categoryId}
+            onChange={setCategoryId}
+            categories={categories}
+            disabled={submitting}
+            placeholder="Select a category (optional)"
+          />
 
           <TextAreaField
             label="What needs doing"
@@ -546,6 +548,14 @@ function PostJobForm({
             disabled={submitting}
             required
           />
+
+          <div>
+            <ImageMultiUpload
+              value={images}
+              onChange={setImages}
+              disabled={submitting}
+            />
+          </div>
 
           {post.isError ? (
             <p role="alert" className="rounded-xl border border-line bg-accent-wash p-3 text-xs text-ink">

@@ -29,6 +29,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
+import { HeroGallery } from '@/components/HeroGallery'
 import { TradespersonIllustration } from '@/components/illustrations/CartoonIllustrations'
 import { SafeImage } from '@/components/SafeImage'
 import { Button } from '@/components/ui/button'
@@ -89,6 +90,9 @@ export function ServiceDetailPage() {
 
   const isSelf = user?.id === service.provider_id
   const otherListings = service.provider_other_listings || []
+  const serviceImages = (service.image_urls && service.image_urls.length > 0)
+    ? service.image_urls
+    : (service.image_url ? [service.image_url] : [])
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-6 space-y-6 animate-fade-rise">
@@ -103,27 +107,18 @@ export function ServiceDetailPage() {
         </Link>
       </div>
 
-      {/* Large Listing Photo Banner (Clickable to Lightbox) */}
-      <div
-        className="relative aspect-video w-full rounded-2xl border border-line bg-sunken overflow-hidden shadow-sm cursor-pointer group"
-        onClick={() => openLightbox(service.image_url, service.title)}
-        title="Click to view full image and download"
-        data-testid="listing-photo"
-      >
-        <SafeImage
-          src={service.image_url}
-          alt={service.title}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.02]"
+      {/* Hero Gallery with Thumbnails & Lightbox */}
+      <div data-testid="listing-photo">
+        <HeroGallery
+          images={serviceImages}
+          title={service.title}
+          aspectRatioClass="aspect-video w-full"
           fallback={
             <div className="flex h-full w-full items-center justify-center bg-sunken">
               <TradespersonIllustration className="h-28 w-28 opacity-75" size={112} />
             </div>
           }
-          skeletonClassName="aspect-video w-full"
         />
-        <div className="absolute bottom-3 right-3 rounded-lg border border-line/40 bg-ink/75 px-2.5 py-1 text-[11px] font-mono text-page backdrop-blur-xs shadow-xs">
-          Click to expand photo
-        </div>
       </div>
 
       {/* Header and Pricing / Hire Block */}

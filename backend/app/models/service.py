@@ -11,7 +11,7 @@ import uuid
 from decimal import Decimal
 
 from geoalchemy2 import Geography
-from sqlalchemy import Boolean, ForeignKey, Index, Numeric, String, Text
+from sqlalchemy import Boolean, ForeignKey, Index, JSON, Numeric, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,6 +41,7 @@ class ServiceListing(Base, UuidPrimaryKeyMixin, TimestampMixin, DemoMarkMixin):
     )
     radius_km: Mapped[float] = mapped_column(Numeric(6, 2), nullable=False, default=5)
     image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_urls: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=False, server_default="[]")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     __table_args__ = (

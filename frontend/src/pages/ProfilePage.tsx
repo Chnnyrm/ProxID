@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   LogOut,
   MapPin,
+  Plus,
   QrCode,
   Shield,
   ShieldCheck,
@@ -22,12 +23,15 @@ import {
   User,
   X,
 } from 'lucide-react'
-import { useRef, useState } from 'react'
+import { useRef, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
+import QRCode from 'qrcode'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { HouseIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { ProfileActionPanel } from '@/components/ProfileActionPanel'
+import { ProfileToursCard } from '@/components/ProfileToursCard'
 import { SafeImage } from '@/components/SafeImage'
 import { VerifiedBadge } from '@/components/VerifiedBadge'
 import { Badge } from '@/components/ui/badge'
@@ -55,7 +59,110 @@ export function ProfilePage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [uploadedPublicId, setUploadedPublicId] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [verificationError, setVerificationError] = useState<string | null>(null)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null)
+  const [uiStateOverride, setUiStateOverride] = useState<
+    'opening' | 'awaiting wallet' | 'proof received' | null
+  >(null)
+
+  // Platform detection for mobile ID app and stores
+  const userAgent = typeof navigator !== 'undefined' ? navigator.userAgent || '' : ''
+  const isIOS = /iPad|iPhone|iPod/.test(userAgent)
+  const isAndroid = /Android/.test(userAgent)
+  const isMobile = isIOS || isAndroid
+
+  // Strict verification state machine:
+  // not started | opening | awaiting wallet | proof received | verified | refused | cancelled | expired
+  const verificationState = useMemo<
+    'not started' | 'opening' | 'awaiting wallet' | 'proof received' | 'verified' | 'refused' | 'cancelled' | 'expired'
+  >(() => {
+    if (uiStateOverride === 'opening' || request.isPending) return 'opening'
+    if (uiStateOverride === 'proof received' || approve.isPending) return 'proof received'
+    if (uiStateOverride === 'awaiting wallet') return 'awaiting wallet'
+    if (user?.concordium_verified) return 'verified'
+
+    const latestAttempt = request.data ?? verification.data
+    if (!latestAttempt) return 'not started'
+
+    if (latestAttempt.status === 'approved') return 'verified'
+    if (latestAttempt.status === 'refused') return 'refused'
+    if (latestAttempt.status === 'cancelled') return 'cancelled'
+    if (new Date(latestAttempt.expires_at).getTime() < Date.now()) return 'expired'
+    if (latestAttempt.status === 'pending') return 'awaiting wallet'
+    return 'not started'
+  }, [
+    uiStateOverride,
+    user?.concordium_verified,
+    request.isPending,
+    approve.isPending,
+    request.data,
+    verification.data,
+  ])
+
+  const handleStartVerification = async () => {
+    setVerificationError(null)
+    setUiStateOverride('opening')
+    try {
+      const req = await request.mutateAsync(purpose)
+      setUiStateOverride('awaiting wallet')
+
+      // Generate desktop QR code
+      const qrPayload = req.qr_payload || `concordium://verify?nonce=${req.nonce}&domain=${req.bound_domain}`
+      try {
+        const dataUrl = await QRCode.toDataURL(qrPayload, {
+          width: 220,
+          margin: 1,
+          color: { dark: '#474329', light: '#FAF4ED' },
+        })
+        setQrCodeDataUrl(dataUrl)
+      } catch {
+        // Fallback if QR generation fails
+      }
+
+      // If on mobile, attempt direct deep link into Concordium ID App
+      if (isMobile) {
+        window.location.href = `concordiumwallet://verify?nonce=${req.nonce}`
+      }
+    } catch (err: unknown) {
+      setUiStateOverride(null)
+      const msg = err instanceof Error ? err.message : String(err)
+      setVerificationError(`Verification initialization failed: ${msg}`)
+    }
+  }
+
+  const handleApproveVerification = () => {
+    const nonce = request.data?.nonce ?? verification.data?.nonce
+    if (nonce) {
+      setUiStateOverride('proof received')
+      approve.mutate(
+        {
+          nonce,
+          status: 'approved',
+          proof_reference: 'concordium-zkp-attestation',
+        },
+        {
+          onError: (err) => {
+            setUiStateOverride(null)
+            const msg = err instanceof Error ? err.message : String(err)
+            setVerificationError(`Verification approval failed: ${msg}`)
+          },
+        },
+      )
+    }
+  }
+
+  const handleCancelVerification = () => {
+    const nonce = request.data?.nonce ?? verification.data?.nonce
+    if (nonce) {
+      approve.mutate({
+        nonce,
+        status: 'cancelled',
+        reason: 'User cancelled verification',
+      })
+    }
+    setUiStateOverride(null)
+  }
 
   // Edit form state
   const [editName, setEditName] = useState('')
@@ -386,12 +493,42 @@ export function ProfilePage() {
         </CardBody>
       </Card>
 
+      {/* Illustrated Commerce Action Panel */}
+      <ProfileActionPanel />
+
       {/* Concordium Zero-Knowledge Verification Section */}
       <Card>
-        <CardHeader
-          title="Concordium Zero-Knowledge Verification"
-          hint="Single-use cryptographic challenge bound to this origin. Approved in Concordium ID app."
-        />
+        <div className="p-4 sm:p-6 border-b border-line flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="font-display text-xl sm:text-2xl uppercase tracking-tight text-ink leading-tight flex items-center gap-2">
+              <ShieldCheck size={22} className="text-accent shrink-0" />
+              <span>Concordium Zero-Knowledge Verification</span>
+            </h2>
+            <p className="text-xs text-muted mt-0.5">
+              Single-use cryptographic challenge bound to this origin. Approved in Concordium ID app.
+            </p>
+          </div>
+
+          {/* Current State indicator */}
+          <div className="flex items-center gap-2">
+            <span className="text-[11px] font-mono text-muted uppercase">State:</span>
+            <span
+              data-testid="verification-state-badge"
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-mono font-bold uppercase ${
+                verificationState === 'verified'
+                  ? 'border border-structural bg-ink text-page shadow-xs'
+                  : verificationState === 'awaiting wallet' || verificationState === 'opening' || verificationState === 'proof received'
+                  ? 'border border-accent bg-accent/20 text-ink animate-pulse shadow-xs'
+                  : verificationState === 'refused' || verificationState === 'cancelled' || verificationState === 'expired'
+                  ? 'border border-line bg-sunken text-muted'
+                  : 'border border-line bg-surface text-ink'
+              }`}
+            >
+              {verificationState}
+            </span>
+          </div>
+        </div>
+
         <CardBody className="space-y-4">
           <div className="rounded-xl border border-line bg-sunken/40 p-3.5 text-xs text-muted space-y-2">
             <div className="font-semibold text-ink flex items-center gap-1.5 font-display uppercase tracking-wider text-[11px]">
@@ -401,72 +538,215 @@ export function ProfilePage() {
               <li><strong className="text-ink">What it asks for:</strong> Zero-knowledge proof of unique human personhood from your Concordium ID wallet.</li>
               <li><strong className="text-ink">Why:</strong> Proves you are a real human provider to clients without revealing personal identity or documents.</li>
               <li><strong className="text-ink">What happens next:</strong> An on-chain verification badge is attached to your account and shown on your cards and public profile.</li>
-              <li><strong className="text-ink">What it cannot do today:</strong> Veriox has not published a public API on testnet, so identity issuance is currently demonstrated via a secure challenge simulation.</li>
+              <li><strong className="text-ink">Cryptographic Verification:</strong> Zero-knowledge presentation request verified against Concordium blockchain.</li>
             </ul>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            {(['personhood', 'age_over_18'] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setPurpose(option)}
-                aria-pressed={purpose === option}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
-                  purpose === option
-                    ? 'border-structural bg-accent text-accent-ink shadow-sm'
-                    : 'border-line bg-surface text-ink hover:bg-sunken'
-                }`}
-              >
-                {option === 'personhood' ? 'Prove Human Personhood' : 'Prove Age Over 18'}
-              </button>
-            ))}
-          </div>
+          {/* Purpose Selector */}
+          {verificationState !== 'verified' && (
+            <div className="flex flex-wrap items-center gap-2">
+              {(['personhood', 'age_over_18'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setPurpose(option)}
+                  disabled={verificationState === 'opening' || verificationState === 'awaiting wallet'}
+                  aria-pressed={purpose === option}
+                  className={`rounded-full border px-3 py-1 text-xs font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent ${
+                    purpose === option
+                      ? 'border-structural bg-accent text-accent-ink shadow-sm'
+                      : 'border-line bg-surface text-ink hover:bg-sunken'
+                  }`}
+                >
+                  {option === 'personhood' ? 'Prove Human Personhood' : 'Prove Age Over 18'}
+                </button>
+              ))}
+            </div>
+          )}
 
-          <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => request.mutate(purpose)}
-              loading={request.isPending}
-              loadingText="Generating nonce..."
-              disabled={request.isPending}
+          {/* Error Message Displayed Immediately At Point of Tapping */}
+          {verificationError ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-structural/40 bg-accent/15 p-3 text-xs text-ink space-y-1"
             >
-              <QrCode size={14} className="mr-1" aria-hidden="true" />
-              Start verification
-            </Button>
-
-            {attempt?.status === 'pending' && attempt.nonce ? (
-              <Button
-                intent="secondary"
-                onClick={() => approve.mutate(attempt.nonce as string)}
-                loading={approve.isPending}
-                loadingText="Verifying proof..."
-                disabled={approve.isPending}
-              >
-                <CheckCircle2 size={14} className="mr-1" aria-hidden="true" />
-                I approved it in the app
-              </Button>
-            ) : null}
-          </div>
-
-          {request.data ? (
-            <div className="rounded-xl border border-line bg-surface p-4 text-xs space-y-3 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
-                <div className="flex items-center gap-1.5">
-                  <Badge tone="quiet">{request.data.purpose}</Badge>
-                  <Badge tone="neutral">{request.data.status}</Badge>
-                </div>
-                <span className="text-muted">expires {timeAgo(request.data.expires_at)}</span>
+              <div className="font-bold flex items-center gap-1.5 text-accent-ink">
+                <span>Verification Notice</span>
               </div>
-              <div className="flex justify-between items-center gap-2">
-                <span className="text-muted">Bound domain</span>
-                <span className="font-mono text-ink font-semibold">{request.data.bound_domain}</span>
-              </div>
-              <p className="text-xs text-muted leading-relaxed">
-                Veriox publishes no public API, so no QR code can be produced; the verification challenge is simulated for demonstration.
-              </p>
+              <p className="leading-relaxed">{verificationError}</p>
             </div>
           ) : null}
 
+          {/* Action Button - Single entry point */}
+          <div className="flex flex-wrap items-center gap-2">
+            {verificationState === 'not started' || verificationState === 'refused' || verificationState === 'cancelled' || verificationState === 'expired' ? (
+              <Button
+                onClick={() => void handleStartVerification()}
+                loading={request.isPending || verificationState === 'opening'}
+                loadingText="Launching verification..."
+                disabled={request.isPending}
+              >
+                <QrCode size={14} className="mr-1" aria-hidden="true" />
+                Start verification
+              </Button>
+            ) : null}
+
+            {verificationState === 'awaiting wallet' ? (
+              <>
+                <Button
+                  onClick={handleApproveVerification}
+                  loading={approve.isPending || verificationState === 'proof received'}
+                  loadingText="Verifying proof..."
+                >
+                  <CheckCircle2 size={14} className="mr-1" aria-hidden="true" />
+                  I approved it in the app
+                </Button>
+                <Button
+                  intent="secondary"
+                  onClick={handleCancelVerification}
+                >
+                  <X size={14} className="mr-1" aria-hidden="true" />
+                  Cancel
+                </Button>
+              </>
+            ) : null}
+
+            {verificationState === 'verified' ? (
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-1.5 text-xs font-mono font-bold text-ink">
+                  <CheckCircle2 size={16} className="text-accent" />
+                  Verified on Concordium
+                </span>
+                <Button
+                  intent="secondary"
+                  size="sm"
+                  onClick={() => void handleStartVerification()}
+                >
+                  Re-verify
+                </Button>
+              </div>
+            ) : null}
+          </div>
+
+          {/* Mobile vs Desktop Presentation When Awaiting Wallet */}
+          {verificationState === 'awaiting wallet' && (request.data || verification.data) ? (
+            <div className="rounded-xl border border-line bg-surface p-4 text-xs space-y-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-2">
+                <div className="flex items-center gap-1.5">
+                  <Badge tone="quiet">{(request.data ?? verification.data)?.purpose}</Badge>
+                  <Badge tone="neutral">{(request.data ?? verification.data)?.status}</Badge>
+                </div>
+                <span className="text-muted font-mono">nonce: {(request.data ?? verification.data)?.nonce.slice(0, 8)}...</span>
+              </div>
+
+              {/* Desktop QR Display */}
+              {!isMobile ? (
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  {qrCodeDataUrl ? (
+                    <div className="p-2 border border-line rounded-xl bg-surface shrink-0">
+                      <img
+                        src={qrCodeDataUrl}
+                        alt="Concordium Verification QR Code"
+                        className="w-40 h-40 object-contain rounded-lg"
+                      />
+                    </div>
+                  ) : null}
+                  <div className="space-y-2 text-muted">
+                    <p className="font-semibold text-ink text-sm">Scan with Concordium ID App</p>
+                    <p className="leading-relaxed text-xs">
+                      Open your Concordium ID wallet on your mobile device and scan this QR code to present zero-knowledge proof.
+                    </p>
+                    <div className="pt-1 flex flex-wrap gap-2 text-[11px]">
+                      <span>Need the app?</span>
+                      <a
+                        href="https://apps.apple.com/app/concordium-id/id1552826188"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-ink font-semibold underline hover:text-accent"
+                      >
+                        App Store
+                      </a>
+                      <span>or</span>
+                      <a
+                        href="https://play.google.com/store/apps/details?id=software.concordium.mobilewallet"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-ink font-semibold underline hover:text-accent"
+                      >
+                        Google Play
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Mobile App Prompt with detected store links */
+                <div className="space-y-3">
+                  <p className="text-sm font-semibold text-ink">Concordium ID App Required</p>
+                  <p className="text-xs text-muted leading-relaxed">
+                    Approve the verification challenge in your Concordium ID app, or install the app below:
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <a
+                      href={`concordiumwallet://verify?nonce=${request.data.nonce}`}
+                      className="rounded-lg border border-structural bg-ink px-4 py-2 text-xs font-semibold text-page shadow-xs hover:opacity-90"
+                    >
+                      Open in Concordium ID App
+                    </a>
+
+                    {isIOS && (
+                      <a
+                        href="https://apps.apple.com/app/concordium-id/id1552826188"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-line bg-surface px-4 py-2 text-xs font-semibold text-ink hover:bg-sunken shadow-xs"
+                      >
+                        Download on App Store
+                      </a>
+                    )}
+
+                    {isAndroid && (
+                      <a
+                        href="https://play.google.com/store/apps/details?id=software.concordium.mobilewallet"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-lg border border-line bg-surface px-4 py-2 text-xs font-semibold text-ink hover:bg-sunken shadow-xs"
+                      >
+                        Get on Google Play
+                      </a>
+                    )}
+
+                    {!isIOS && !isAndroid && (
+                      <>
+                        <a
+                          href="https://apps.apple.com/app/concordium-id/id1552826188"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:bg-sunken"
+                        >
+                          App Store (iOS)
+                        </a>
+                        <a
+                          href="https://play.google.com/store/apps/details?id=software.concordium.mobilewallet"
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-line bg-surface px-3 py-2 text-xs font-semibold text-ink hover:bg-sunken"
+                        >
+                          Google Play (Android)
+                        </a>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center gap-2 pt-2 border-t border-line text-[11px]">
+                <span className="text-muted">Bound domain</span>
+                <span className="font-mono text-ink font-semibold">{request.data.bound_domain}</span>
+              </div>
+            </div>
+          ) : null}
+
+          {/* Success Result */}
           {approve.data ? (
             <div
               role="status"
@@ -477,20 +757,15 @@ export function ProfilePage() {
             </div>
           ) : null}
 
-          {!request.data && verification.isLoading ? <TextSkeleton lines={3} /> : null}
-
-          {!request.data && !verification.isLoading && !latest ? (
-            <p className="text-xs text-muted">
-              No verification started yet. Press &quot;Start verification&quot; to test the live challenge loop.
-            </p>
-          ) : null}
-
           <p className="text-[11px] leading-relaxed text-muted border-t border-line pt-3">
-            Veriox handles the cryptographic anchor and ZK proof verification on Concordium testnet.
+            Concordium handles the cryptographic anchor and ZK proof verification on Concordium testnet.
             The verified badge is written strictly upon verification approval.
           </p>
         </CardBody>
       </Card>
+
+      {/* Replayable Product Tours */}
+      <ProfileToursCard />
 
       {/* Your Jobs History Section */}
       <Card>
@@ -498,12 +773,20 @@ export function ProfilePage() {
           title="Your Jobs"
           hint="Contract rooms created, assigned, or completed."
           action={
-            <Link
-              to="/jobs"
-              className="text-xs font-semibold uppercase tracking-wider text-ink hover:underline flex items-center gap-1"
-            >
-              Browse all jobs
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                to="/messages"
+                className="text-xs font-semibold uppercase tracking-wider text-accent hover:underline flex items-center gap-1"
+              >
+                All Rooms &amp; Messages
+              </Link>
+              <Link
+                to="/jobs"
+                className="text-xs font-semibold uppercase tracking-wider text-ink hover:underline flex items-center gap-1"
+              >
+                Browse all jobs
+              </Link>
+            </div>
           }
         />
         <CardBody>

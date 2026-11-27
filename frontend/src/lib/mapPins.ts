@@ -18,6 +18,7 @@ export interface PinData {
   price?: number | null
   avatarUrl?: string | null
   verified?: boolean
+  dimmed?: boolean
 }
 
 /** Cartoon face SVG for providers without a custom photo */
@@ -88,7 +89,7 @@ export function createPinIcon(point: PinData, active: boolean): L.DivIcon {
     : ''
 
   const html = `
-    <div class="proxid-pin-wrapper ${active ? 'z-50' : ''}" style="position:relative;width:36px;height:46px;transform-origin:50% 100%;">
+    <div class="proxid-pin-wrapper ${active ? 'z-50' : ''}" style="position:relative;width:36px;height:46px;transform-origin:50% 100%;${point.dimmed ? 'opacity:0.55;filter:saturate(70%);' : ''}">
       ${halo}
       <!-- Round Head -->
       <div style="
@@ -143,6 +144,39 @@ export function createPinIcon(point: PinData, active: boolean): L.DivIcon {
     iconSize: [36, 46],
     iconAnchor: [18, 45],
     popupAnchor: [0, -42],
+    html,
+  })
+}
+
+export function createClusterIcon(count: number, dimmed = false, isJob = false): L.DivIcon {
+  const bg = isJob ? '#FC75B4' : '#474329'
+  const opacity = dimmed ? '0.6' : '1'
+  const html = `
+    <div style="
+      width: 38px;
+      height: 38px;
+      border-radius: 9999px;
+      background: ${bg};
+      opacity: ${opacity};
+      border: 2.5px solid #FAF4ED;
+      color: #FAF4ED;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: monospace;
+      font-weight: 800;
+      font-size: 13px;
+      box-shadow: 0 3px 8px rgba(71,67,41,0.35);
+      cursor: pointer;
+      user-select: none;
+    ">
+      ${count}
+    </div>
+  `
+  return L.divIcon({
+    className: 'proxid-cluster-marker',
+    iconSize: [38, 38],
+    iconAnchor: [19, 19],
     html,
   })
 }

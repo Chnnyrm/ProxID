@@ -24,8 +24,10 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { CategorySelect } from '@/components/CategorySelect'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
+import { ImageMultiUpload } from '@/components/ImageMultiUpload'
 import { ServiceCard } from '@/components/ServiceCard'
 import { CardSkeleton } from '@/components/ui/skeleton'
 import {
@@ -33,10 +35,12 @@ import {
   useCreateListing,
   useNearbyListings,
 } from '@/hooks/useProviders'
+import { useAuth } from '@/hooks/useAuth'
 import { useLocationStore } from '@/store/locationStore'
 import type { ServiceListing } from '@/types/api'
 
 export function ServicesPage() {
+  const { isSignedIn, isLoading } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialCategory = searchParams.get('category') || 'all'
   const initialSearch = searchParams.get('q') || ''
@@ -57,7 +61,21 @@ export function ServicesPage() {
     if (cat !== null) {
       setSelectedCategory(cat)
     }
-  }, [searchParams])
+    if (searchParams.get('compose') === '1') {
+      if (isLoading) return
+      if (!isSignedIn) {
+        window.dispatchEvent(
+          new CustomEvent('proxid-require-auth', {
+            detail: { action: 'offer a service' },
+          })
+        )
+      } else {
+        setIsPublishOpen(true)
+      }
+      searchParams.delete('compose')
+      setSearchParams(searchParams, { replace: true })
+    }
+  }, [searchParams, setSearchParams, isSignedIn, isLoading])
 
   // Location and Radius
   const coordinates = useLocationStore((state) => state.coordinates)
@@ -75,6 +93,7 @@ export function ServicesPage() {
   const [pubDesc, setPubDesc] = useState('')
   const [pubPrice, setPubPrice] = useState('')
   const [pubCatId, setPubCatId] = useState('')
+  const [pubImages, setPubImages] = useState<string[]>([])
 
   const handleNearbyToggle = async () => {
     setIsLocating(true)
@@ -121,12 +140,15 @@ export function ServicesPage() {
       latitude: coordinates.latitude,
       longitude: coordinates.longitude,
       radius_km: radiusKm,
+      image_urls: pubImages,
+      image_url: pubImages[0] || undefined,
     })
 
     setPubTitle('')
     setPubDesc('')
     setPubPrice('')
     setPubCatId('')
+    setPubImages([])
     setIsPublishOpen(false)
   }
 
@@ -153,7 +175,17 @@ export function ServicesPage() {
 
           <button
             type="button"
-            onClick={() => setIsPublishOpen(true)}
+            onClick={() => {
+              if (!isSignedIn) {
+                window.dispatchEvent(
+                  new CustomEvent('proxid-require-auth', {
+                    detail: { action: 'offer a service' },
+                  })
+                )
+                return
+              }
+              setIsPublishOpen(true)
+            }}
             className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-structural bg-ink px-4 text-xs font-bold text-page hover:opacity-90 transition-opacity active:translate-y-px shadow-xs"
           >
             <Plus size={14} />
@@ -382,23 +414,12 @@ export function ServicesPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-ink mb-1">
-                  Category
-                </label>
-                <select
-                  value={pubCatId}
-                  onChange={(e) => setPubCatId(e.target.value)}
-                  className="w-full rounded-xl border border-line bg-sunken/40 px-3 py-2 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-structural"
-                >
-                  <option value="">Select Category</option>
-                  {categoriesQuery.data?.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CategorySelect
+                value={pubCatId}
+                onChange={setPubCatId}
+                categories={categoriesQuery.data}
+                placeholder="Select Category (optional)"
+              />
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-ink mb-1">
@@ -410,6 +431,14 @@ export function ServicesPage() {
                   value={pubDesc}
                   onChange={(e) => setPubDesc(e.target.value)}
                   className="w-full rounded-xl border border-line bg-sunken/40 px-3 py-2 text-xs text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-structural"
+                />
+              </div>
+
+              <div>
+                <ImageMultiUpload
+                  value={pubImages}
+                  onChange={setPubImages}
+                  disabled={createListingMutation.isPending}
                 />
               </div>
 

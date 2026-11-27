@@ -25,7 +25,7 @@ async def search_nearby(
     longitude: float = Query(ge=-180, le=180),
     radius_km: float = Query(default=5, ge=0, le=100),
     category_id: uuid.UUID | None = Query(default=None),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     container: Container = Depends(get_container),
@@ -60,7 +60,7 @@ async def search(
     longitude: float | None = Query(default=None, ge=-180, le=180),
     radius_km: float = Query(default=10, ge=0, le=100),
     sort: str | None = Query(default=None, pattern="^(price_asc|price_desc|newest|nearest)$"),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     container: Container = Depends(get_container),
@@ -106,7 +106,7 @@ async def my_applied_job_ids(
 
 @router.get("", response_model=list[JobOut])
 async def browse(
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     container: Container = Depends(get_container),

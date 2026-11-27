@@ -46,6 +46,8 @@ export interface JobCreateBody {
   category_id?: string | null
   latitude?: number | null
   longitude?: number | null
+  image_url?: string | null
+  image_urls?: string[]
 }
 
 export interface MessageCreateBody {

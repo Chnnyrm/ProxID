@@ -89,13 +89,66 @@ Rules:
 """
 
 
+def parse_and_sanitize_reply(
+    text: str, existing_actions: list[dict[str, Any]] | None = None
+) -> tuple[str, list[dict[str, Any]]]:
+    """Parse pseudo-button markers into structured actions, then strip the markers from prose.
+
+    Handles both forms:
+      (Buttons: A | B | C), (Button: Share Location)
+      [Buttons: A, B, C], [Button: Pay]
+    with separators '|', ',', or '/'.
+    Converts each option into an entry in the structured actions array so the UI renders
+    real tappable chips, then strips any remaining marker text from prose.
+    """
+    actions = list(existing_actions or [])
+    existing_labels = {a.get("label", "").strip().lower() for a in actions if isinstance(a, dict)}
+
+    # Matches (Button: ...), (Buttons: ...), [Button: ...], [Buttons: ...]
+    pattern = re.compile(
+        r"(?:\((?:[Bb]uttons?):\s*([^)]+)\)|\[(?:[Bb]uttons?):\s*([^\]]+)\]|\b(?:[Bb]uttons?):\s*([^\n]+))"
+    )
+
+    for match in pattern.finditer(text):
+        raw_options = match.group(1) or match.group(2) or match.group(3) or ""
+        raw_options = raw_options.strip()
+        if not raw_options:
+            continue
+
+        # Determine separator: '|', '/', or ','
+        if "|" in raw_options:
+            opts = [o.strip() for o in raw_options.split("|")]
+        elif "/" in raw_options:
+            opts = [o.strip() for o in raw_options.split("/")]
+        elif "," in raw_options:
+            opts = [o.strip() for o in raw_options.split(",")]
+        else:
+            opts = [raw_options.strip()]
+
+        for opt in opts:
+            cleaned_opt = opt.strip()
+            if not cleaned_opt or cleaned_opt.lower() in existing_labels:
+                continue
+            existing_labels.add(cleaned_opt.lower())
+            actions.append(
+                {
+                    "id": f"act-{uuid.uuid4().hex[:8]}",
+                    "label": cleaned_opt,
+                    "kind": "prompt",
+                    "payload": {"command": cleaned_opt},
+                }
+            )
+
+    # Strip markers from prose
+    cleaned = pattern.sub("", text)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip(), actions
+
+
 def sanitize_agent_reply(text: str) -> str:
     """Strip any leaked UI pseudo-buttons like (Button: Share Location) or [Button: ...]."""
-    cleaned = re.sub(r"\([Bb]utton:\s*[^)]+\)", "", text)
-    cleaned = re.sub(r"\[[Bb]utton:\s*[^\]]+\]", "", cleaned)
-    cleaned = re.sub(r"\b[Bb]utton:\s*[^\n]+", "", cleaned)
-    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
-    return cleaned.strip()
+    cleaned, _ = parse_and_sanitize_reply(text)
+    return cleaned
 
 
 @dataclass
@@ -342,6 +395,102 @@ async def run_agent(
             reply=reply,
             steps=[{"name": "apply_job", "arguments": {"job_id": target_job_id_str}, "result": tool_res}],
             used_tools=["apply_job"],
+            degraded=False,
+            context=context,
+            actions=actions,
+        )
+
+    # 5. Direct service listing creation: e.g. "create service listing '...' with price ... with images ..."
+    create_service_match = re.search(
+        r"(?:create|publish|offer)\s+(?:service\s+listing|service)\s+[\"']?([^\"'\n,]+?)[\"']?(?:\s+(?:with\s+)?(?:price\s+)?(\d+(?:\.\d+)?))?(?:\s+(?:with\s+)?images?\s+(\S+))?",
+        cmd_lower,
+    )
+    if create_service_match:
+        title = create_service_match.group(1).strip()
+        price = float(create_service_match.group(2) or 25000)
+        image = create_service_match.group(3)
+        images = [image] if image else []
+        tool_res = await execute_tool(
+            services.tool_context,
+            "create_service_listing",
+            {"title": title, "price": price, "image_urls": images},
+        )
+        if tool_res.get("ok"):
+            service = tool_res.get("service") or {}
+            reply = f"I have published your service listing \"{title}\" at NGN {price:,.0f} with {len(images)} image(s). Clients nearby can now book this service."
+            actions = [
+                {
+                    "id": f"view-service-{service.get('id')}",
+                    "label": "View Service Listing",
+                    "kind": "navigate",
+                    "target": f"/services/{service.get('id')}",
+                }
+            ]
+        else:
+            reply = f"Could not create service listing: {tool_res.get('error', 'unknown error')}"
+            actions = []
+
+        await agent_conversation_crud.add_turn(
+            db, conv.id, user.id, role="user", content=command, is_demo=user.is_demo
+        )
+        await agent_conversation_crud.add_turn(
+            db,
+            conv.id,
+            user.id,
+            role="assistant",
+            content=reply,
+            steps=[{"name": "create_service_listing", "arguments": {"title": title, "price": price, "image_urls": images}, "result": tool_res}],
+            used_tools=["create_service_listing"],
+            actions=actions,
+            degraded=False,
+            is_demo=user.is_demo,
+        )
+        return RunOutcome(
+            reply=reply,
+            steps=[{"name": "create_service_listing", "arguments": {"title": title, "price": price, "image_urls": images}, "result": tool_res}],
+            used_tools=["create_service_listing"],
+            degraded=False,
+            context=context,
+            actions=actions,
+        )
+
+    # 6. Direct category creation: e.g. "create category 'Solar Repair'"
+    cat_match = re.search(r"create\s+(?:a\s+)?category\s+[\"']?([^\"'\n]+?)[\"']?$", cmd_lower)
+    if cat_match:
+        cat_name = cat_match.group(1).strip()
+        tool_res = await execute_tool(
+            services.tool_context,
+            "create_category",
+            {"name": cat_name},
+        )
+        if tool_res.get("ok"):
+            reply = f"Category \"{cat_name}\" has been created and is now available across the platform."
+            actions = [
+                {"id": "browse-services", "label": "Browse Services", "kind": "navigate", "target": f"/services?category={cat_name}"}
+            ]
+        else:
+            reply = f"Could not create category: {tool_res.get('error', 'unknown error')}"
+            actions = []
+
+        await agent_conversation_crud.add_turn(
+            db, conv.id, user.id, role="user", content=command, is_demo=user.is_demo
+        )
+        await agent_conversation_crud.add_turn(
+            db,
+            conv.id,
+            user.id,
+            role="assistant",
+            content=reply,
+            steps=[{"name": "create_category", "arguments": {"name": cat_name}, "result": tool_res}],
+            used_tools=["create_category"],
+            actions=actions,
+            degraded=False,
+            is_demo=user.is_demo,
+        )
+        return RunOutcome(
+            reply=reply,
+            steps=[{"name": "create_category", "arguments": {"name": cat_name}, "result": tool_res}],
+            used_tools=["create_category"],
             degraded=False,
             context=context,
             actions=actions,
@@ -654,7 +803,9 @@ async def run_agent(
 
         if not tool_calls:
             reply = (message.get("content") or "").strip()
-            final_reply = sanitize_agent_reply(reply or _rule_based_reply(command, context))
+            final_reply, actions = parse_and_sanitize_reply(
+                reply or _rule_based_reply(command, context), actions
+            )
 
             # Never end with a question that has no action chips
             if final_reply.rstrip().endswith("?") and not actions:
@@ -751,8 +902,9 @@ async def run_agent(
     except DependencyUnavailableError:
         reply = ""
 
-    final_reply = sanitize_agent_reply(
-        reply or "I gathered what I could. Check the activity list for the details."
+    final_reply, actions = parse_and_sanitize_reply(
+        reply or "I gathered what I could. Check the activity list for the details.",
+        actions,
     )
     if final_reply.rstrip().endswith("?") and not actions:
         actions = [

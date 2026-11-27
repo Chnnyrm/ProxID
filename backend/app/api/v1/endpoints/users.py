@@ -45,7 +45,7 @@ async def providers_nearby(
     longitude: float = Query(ge=-180, le=180),
     radius_km: float = Query(default=5, ge=0, le=100),
     verified_only: bool = Query(default=False),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     container: Container = Depends(get_container),
@@ -69,7 +69,7 @@ async def providers_nearby(
 @router.get("/providers/search", response_model=list[ProviderOut])
 async def providers_search(
     q: str = Query(min_length=1, max_length=120),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     container: Container = Depends(get_container),

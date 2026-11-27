@@ -27,6 +27,16 @@ export function useNearbyProviders(verifiedOnly = false) {
   })
 }
 
+/** All providers across the platform for map transparency without radius filtering. */
+export function useMapAllProviders() {
+  const coordinates = useLocationStore((state) => state.coordinates)
+  return useQuery({
+    queryKey: ['providers', 'map-all', coordinates.latitude, coordinates.longitude],
+    queryFn: () => providerService.nearby(coordinates, 0, false, 100),
+    placeholderData: keepPreviousData,
+  })
+}
+
 /** Providers matching a word. */
 export function useProviderSearch(query: string) {
   return useQuery({
@@ -42,6 +52,18 @@ export function useCategories() {
     queryKey: providerKeys.categories,
     queryFn: () => providerService.categories(),
     staleTime: 5 * 60 * 1000,
+  })
+}
+
+/** Create a new marketplace category and refresh the category list. */
+export function useCreateCategory() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ name, description }: { name: string; description?: string }) =>
+      providerService.createCategory(name, description),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: providerKeys.categories })
+    },
   })
 }
 

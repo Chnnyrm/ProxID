@@ -82,11 +82,19 @@ self.addEventListener('message', (event) => {
     var simData = event.data.payload || {};
     var simTitle = simData.title || 'ProxID Alert';
     var simMessage = simData.body || simData.message || 'New update from your ProxID agent';
+    var simActions = simData.actions || [
+      { action: 'apply', title: 'Apply Now' },
+      { action: 'reply', title: 'Ask proxidAI' }
+    ];
     var simOptions = {
       body: simMessage,
       icon: simData.icon || '/icon.png',
       badge: simData.badge || '/icon.png',
-      data: { link: simData.link || '/' },
+      data: {
+        link: simData.link || '/jobs',
+        actions: simActions
+      },
+      actions: simActions,
       tag: simData.tag || 'proxid-sim-push'
     };
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
@@ -95,6 +103,7 @@ self.addEventListener('message', (event) => {
         title: simTitle,
         body: simMessage,
         tag: simOptions.tag,
+        actions: simActions,
         open_windows_count: clientList.length,
         delivered_with_tab_closed: clientList.length === 0,
         timestamp: new Date().toISOString()
@@ -107,12 +116,17 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SCHEDULE_CLOSED_TAB_PUSH') {
     var schedDelay = event.data.delay || 1000;
     var schedPayload = event.data.payload || {};
+    var schedActions = schedPayload.actions || [
+      { action: 'apply', title: 'Apply Now' },
+      { action: 'reply', title: 'Ask proxidAI' }
+    ];
     setTimeout(function() {
       self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
         var notif = {
           title: schedPayload.title || 'Work Match Alert',
           body: schedPayload.body || 'New job matched while app was closed',
           tag: 'closed-tab-alert',
+          actions: schedActions,
           open_windows_count: clientList.length,
           delivered_with_tab_closed: clientList.length === 0,
           timestamp: new Date().toISOString()
@@ -120,7 +134,14 @@ self.addEventListener('message', (event) => {
         self.__delivered_notifications = self.__delivered_notifications || [];
         self.__delivered_notifications.push(notif);
         try {
-          self.registration.showNotification(notif.title, { body: notif.body, tag: notif.tag });
+          self.registration.showNotification(notif.title, {
+            body: notif.body,
+            tag: notif.tag,
+            icon: '/icon.png',
+            badge: '/icon.png',
+            actions: schedActions,
+            data: { link: schedPayload.link || '/jobs', actions: schedActions }
+          });
         } catch (e) {}
       });
     }, schedDelay);
@@ -143,12 +164,16 @@ self.addEventListener('push', (event) => {
   var badge = data.badge || '/icon.png';
   var link = data.link || data.url || '/';
 
-  var actions = [];
-  if (Array.isArray(data.actions)) {
+  var actions = [
+    { action: 'apply', title: 'Apply Now' },
+    { action: 'reply', title: 'Ask proxidAI' }
+  ];
+  if (Array.isArray(data.actions) && data.actions.length > 0) {
     actions = data.actions.slice(0, 2).map(function(act) {
       return {
         action: act.action || act.kind || act.id || 'open',
-        title: act.title || act.label || 'View'
+        title: act.title || act.label || 'View',
+        link: act.link || act.url || ''
       };
     });
   }
@@ -193,8 +218,13 @@ self.addEventListener('notificationclick', (event) => {
   var targetUrl = data.link || '/';
 
   if (event.action) {
-    // If user clicked a specific action button with target or link
-    if (data.actions && Array.isArray(data.actions)) {
+    if (event.action === 'apply') {
+      targetUrl = '/jobs';
+    } else if (event.action === 'approve') {
+      targetUrl = '/agent';
+    } else if (event.action === 'reply') {
+      targetUrl = '/agent?listen=1';
+    } else if (data.actions && Array.isArray(data.actions)) {
       for (var i = 0; i < data.actions.length; i++) {
         var a = data.actions[i];
         if (a.action === event.action && a.link) {
