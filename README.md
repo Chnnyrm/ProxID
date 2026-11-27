@@ -35,6 +35,15 @@ with a sponsor covering the network fee. Before acting on someone's behalf, the
 person approves the exact request in the Concordium ID app, and the app checks the
 prompt text against an on-chain anchor so the request cannot be altered in transit.
 
+### Key Usability Decision: Managed Keys
+
+Two funded accounts, and neither belongs to a user:
+
+    sponsor     3LGnFKnaQpMCsTUd3LhefNJ1Fain5d4A31i3ZTzuRhzE9tLgXW   pays the network fee
+    payer       4EuBPU3CKVWkWxHxUtq9fhazzuCx9dWFkdL5TjUTwkAwZ3bj98   sends the payment
+
+Both are operated by ProxID's backend. A user never holds a key. The agent spends on the person's behalf after they consent, and the person sees a price, an approval, and a receipt. This is the design decision that makes the product usable: if a person had to manage a wallet, none of them would.
+
 Verifications, consents and payments are anchored on chain as hashes. The records
 themselves stay off chain, so no personal data reaches a public ledger and it can
 still be erased. Deleting the off-chain row and its nonce makes the on-chain hash

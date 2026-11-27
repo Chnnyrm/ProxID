@@ -1,9 +1,10 @@
 /**
- * Proves the service can start and answer, without a sponsor key and without a network.
+ * Proves the service can start and answer, without credentials and without a network.
  *
  * Three production outages in this project came from code that imported locally and
  * failed on the platform. This does the opposite: it boots the real server with no
  * credentials and asserts it reports itself as not ready rather than crashing or lying.
+ * Pure ASCII only.
  */
 
 import { spawn } from 'node:child_process'
@@ -19,7 +20,14 @@ function fail(message) {
 }
 
 const child = spawn(process.execPath, [path.join(here, 'server.mjs')], {
-  env: { ...process.env, PORT: String(PORT), X402_SPONSOR_ADDRESS: '', X402_SPONSOR_PRIVATE_KEY: '' },
+  env: {
+    ...process.env,
+    PORT: String(PORT),
+    X402_SPONSOR_ADDRESS: '',
+    X402_SPONSOR_PRIVATE_KEY: '',
+    X402_PAYER_ADDRESS: '',
+    X402_PAYER_PRIVATE_KEY: '',
+  },
   stdio: ['ignore', 'pipe', 'pipe'],
 })
 
@@ -39,12 +47,26 @@ try {
   if (health.status !== 503) fail(`/health must be 503 without a sponsor key, got ${health.status}`)
   if (body.status !== 'not_ready') fail(`/health must say not_ready, got ${body.status}`)
   if (!body.detail) fail('/health must explain what is missing')
+  if (body.payerKeyPresent !== false) fail('/health must report payerKeyPresent as false without key')
   console.log(`[OK] /health is honest: ${body.detail}`)
+  console.log('[OK] /health reports payer credentials status accurately')
 
   const supported = await fetch(`http://127.0.0.1:${PORT}/supported`)
   const kinds = (await supported.json()).kinds
   if (Array.isArray(kinds) && kinds.length > 0) fail('/supported must list no schemes without a signer')
   console.log('[OK] /supported claims nothing it cannot do')
+
+  const pay = await fetch(`http://127.0.0.1:${PORT}/pay`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ requirements: {} }),
+  })
+  if (pay.status !== 503) fail(`/pay must be 503 without payer credentials, got ${pay.status}`)
+  const payBody = await pay.json()
+  if (!payBody.error || !payBody.error.includes('missing payer credentials')) {
+    fail(`/pay error must report missing payer credentials, got: ${JSON.stringify(payBody)}`)
+  }
+  console.log('[OK] /pay refuses without payer credentials')
 
   const settle = await fetch(`http://127.0.0.1:${PORT}/settle`, {
     method: 'POST',
