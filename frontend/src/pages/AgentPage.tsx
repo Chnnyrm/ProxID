@@ -429,14 +429,14 @@ export function AgentPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] max-w-4xl mx-auto w-full relative">
-      {/* 1. Header: proxidAI avatar, verified state, registry identity */}
+      {/* 1. Header: proxidAI identity and verification mark only */}
       <header className="py-2.5 px-3 sm:px-4 border-b border-line shrink-0 flex items-center justify-between gap-3 bg-surface/90 backdrop-blur-xs">
         <div className="flex items-center gap-3">
           <div className="relative">
             <img
               src={PROXIDAI_AVATAR}
               alt="proxidAI"
-              className={`h-11 w-11 rounded-full border border-structural bg-surface object-cover shadow-xs transition-all ${
+              className={`h-10 w-10 rounded-full border border-structural bg-surface object-cover shadow-xs transition-all ${
                 runAgent.isPending ? 'ring-2 ring-accent ring-offset-2 animate-pulse scale-105' : ''
               }`}
             />
@@ -454,84 +454,27 @@ export function AgentPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold text-ink">proxidAI</h1>
-              <span className="inline-flex items-center gap-1 rounded-full border border-structural bg-page px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-ink shadow-xs">
-                Verified Human Registry
+              <span className="inline-flex items-center gap-1 rounded-full border border-line bg-page px-2 py-0.5 text-[10px] font-mono text-muted">
+                Concordium ID Attested
               </span>
             </div>
-            <div className="flex items-center gap-2 text-xs text-muted font-mono mt-0.5">
-              <span>cis-8004:proxid-registry</span>
-              <span>//</span>
-              <span>{tools.data?.llm_configured ? 'model active' : 'deterministic fallback'}</span>
-            </div>
           </div>
-        </div>
-
-        {/* Header Right: Spend Guard Tag & Card Details Toggle */}
-        <div className="flex items-center gap-2">
-          <div
-            data-tour="tour-consent"
-            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-line bg-page text-[10px] font-mono text-ink font-semibold shadow-xs"
-            title="Human consent required before spending"
-          >
-            <ShieldAlert size={12} className="text-accent" />
-            <span>Cap: NGN 10k</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowCardDetails(!showCardDetails)}
-            className="inline-flex items-center gap-1 rounded-lg border border-line bg-page px-2.5 py-1 text-xs font-mono text-muted hover:text-ink hover:border-structural transition-colors shadow-xs"
-          >
-            <span>Card Details</span>
-            {showCardDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
         </div>
       </header>
-
-      {/* Expandable Agent Card Details */}
-      {showCardDetails && (
-        <div className="mx-3 my-2 p-3 bg-surface border border-line rounded-xl shadow-xs space-y-2 text-xs">
-          <div className="flex items-center justify-between border-b border-line pb-2">
-            <span className="font-mono font-bold text-ink">Agent On-Chain Registration</span>
-            <span className="font-mono text-[10px] text-muted">
-              {card.data?.registered ? 'REGISTERED' : 'LOCAL PROTOTYPE'}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
-            <div>
-              <span className="text-muted block">Human Identity:</span>
-              <span className="text-ink font-semibold">
-                {identity.data?.human_verified ? 'Verified Human' : 'Unverified'}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted block">Spending Limit:</span>
-              <span className="text-ink font-semibold">
-                NGN {card.data?.spending_limits?.per_payment_cap?.toLocaleString() ?? '10,000'} / transaction
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 2. Conversation Message Thread */}
       <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-4 pb-28 lg:pb-24">
         {messages.length === 0 ? (
-          /* Empty state with 3 suggested prompts */
-          <div className="flex flex-col items-center justify-center min-h-[260px] text-center px-4 space-y-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-structural bg-surface shadow-xs">
-              <Bot size={32} className="text-ink" />
+          /* Empty state: agent character, one sentence, three suggested prompts */
+          <div className="flex flex-col items-center justify-center min-h-[280px] text-center px-4 space-y-4">
+            <div className="flex justify-center">
+              <AgentCharacterIllustration size={72} />
             </div>
-            <div>
-              <h2 className="text-lg font-bold text-ink">How can proxidAI help you?</h2>
-              <p className="text-xs text-muted max-w-sm mt-1">
-                Ask to find local verified providers, scout services, or review open tasks.
-              </p>
-            </div>
+            <p className="text-sm font-semibold text-ink max-w-sm">
+              Ask proxidAI to find verified local trades, post community jobs, or manage your bookings.
+            </p>
 
             <div className="w-full max-w-md space-y-2 pt-2">
-              <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-muted block text-left">
-                Suggested Prompts
-              </span>
               {SUGGESTED_PROMPTS.map((prompt) => (
                 <button
                   key={prompt}

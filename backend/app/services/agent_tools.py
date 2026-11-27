@@ -29,7 +29,7 @@ from ..core.logging import get_logger
 from ..crud import agent_log as agent_log_crud
 from ..models.user import User
 from ..schemas.job import JobCreate
-from ..schemas.service import ServiceCreate
+from ..schemas.service import ServiceCreate, ServiceUpdate
 from .job_service import JobService
 from .message_service import MessageService
 from .payment_service import PaymentService
@@ -55,6 +55,8 @@ class ToolContext:
     messages: MessageService
     payments: PaymentService
     users: UserService
+    categories: Any = None
+    verification: Any = None
 
 
 def _trim(text: str | None, limit: int = DESCRIPTION_CHAR_LIMIT) -> str:
@@ -274,12 +276,16 @@ async def _tool_post_job(context: ToolContext, args: dict[str, Any]) -> dict[str
 
     lat, lon = resolve_coordinates(context, args)
 
+    images = args.get("image_urls") or args.get("images") or []
+    image_url = images[0] if images else args.get("image_url")
+
     payload = JobCreate(
         title=title,
         description=description,
         price=float(price),
         latitude=lat,
         longitude=lon,
+        image_url=image_url,
     )
     job = await context.jobs.post_job(context.db, context.user, payload)
     return {
@@ -316,6 +322,9 @@ async def _tool_create_service_listing(
     lat = float(args["latitude"]) if args.get("latitude") is not None else context.user.latitude
     lon = float(args["longitude"]) if args.get("longitude") is not None else context.user.longitude
 
+    images = args.get("image_urls") or args.get("images") or []
+    image_url = images[0] if images else args.get("image_url")
+
     payload = ServiceCreate(
         title=title,
         description=description or None,
@@ -324,6 +333,7 @@ async def _tool_create_service_listing(
         latitude=lat,
         longitude=lon,
         radius_km=float(args["radius_km"]) if args.get("radius_km") is not None else None,
+        image_url=image_url,
     )
     listing = await context.listings.create_listing(context.db, context.user, payload)
     return {
@@ -331,6 +341,187 @@ async def _tool_create_service_listing(
         "service": _service_card(listing),
         "note": "Service listing published. Clients within range can now find and book it.",
     }
+
+
+async def _tool_update_service_listing(
+    context: ToolContext, args: dict[str, Any]
+) -> dict[str, Any]:
+    """Provider side: update an existing service listing."""
+    raw_id = args.get("service_id")
+    if not raw_id:
+        return _error("service_id is required.")
+    try:
+        service_id = uuid.UUID(str(raw_id))
+    except (TypeError, ValueError):
+        return _error("service_id is not a valid UUID.")
+
+    raw_category = args.get("category_id")
+    category_id = None
+    if raw_category:
+        try:
+            category_id = uuid.UUID(str(raw_category))
+        except (TypeError, ValueError):
+            pass
+
+    images = args.get("image_urls") or args.get("images") or []
+    image_url = images[0] if images else args.get("image_url")
+
+    payload = ServiceUpdate(
+        title=args.get("title"),
+        description=args.get("description"),
+        price=float(args["price"]) if args.get("price") is not None else None,
+        category_id=category_id,
+        image_url=image_url,
+        is_active=args.get("is_active"),
+    )
+    try:
+        listing = await context.listings.update_listing(
+            context.db, context.user, service_id, payload
+        )
+    except ApplicationError as exc:
+        return _error(exc.external_message)
+    except Exception as exc:
+        return _error(f"Failed to update listing: {exc}")
+
+    return {
+        "ok": True,
+        "service": _service_card(listing),
+        "note": f"Service listing '{listing.title}' updated successfully.",
+    }
+
+
+async def _tool_create_category(
+    context: ToolContext, args: dict[str, Any]
+) -> dict[str, Any]:
+    """Create a new marketplace service category."""
+    name = str(args.get("name") or "").strip()
+    if not name:
+        return _error("Category name cannot be empty or whitespace only.")
+
+    try:
+        if context.categories and hasattr(context.categories, "create_category"):
+            category = await context.categories.create_category(context.db, name, user_id=context.user.id)
+            return {
+                "ok": True,
+                "category": {"id": str(category.id), "name": category.name, "slug": category.slug},
+                "note": f"Category '{category.name}' created and available immediately.",
+            }
+        else:
+            import re
+            from ..crud import category as category_crud
+            from ..models.category import Category
+
+            slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+            existing = await category_crud.get_by_name(context.db, name)
+            if existing:
+                return {
+                    "ok": True,
+                    "category": {"id": str(existing.id), "name": existing.name, "slug": existing.slug},
+                    "note": f"Category '{existing.name}' already exists and is ready to use.",
+                }
+
+            cat = Category(name=name, slug=slug)
+            context.db.add(cat)
+            await context.db.commit()
+            await context.db.refresh(cat)
+            return {
+                "ok": True,
+                "category": {"id": str(cat.id), "name": cat.name, "slug": cat.slug},
+                "note": f"Category '{cat.name}' created and available immediately.",
+            }
+    except Exception as exc:
+        return _error(f"Failed to create category: {exc}")
+
+
+async def _tool_hire_provider(
+    context: ToolContext, args: dict[str, Any]
+) -> dict[str, Any]:
+    """Hire a provider for a job, assigning them and locking the agreement."""
+    raw_provider_id = args.get("provider_id")
+    if not raw_provider_id:
+        return _error("provider_id is required to hire a provider.")
+    try:
+        provider_id = uuid.UUID(str(raw_provider_id))
+    except (TypeError, ValueError):
+        return _error("provider_id is not a valid UUID.")
+
+    raw_job_id = args.get("job_id")
+    job_id = None
+    if raw_job_id:
+        try:
+            job_id = uuid.UUID(str(raw_job_id))
+        except (TypeError, ValueError):
+            return _error("job_id is not a valid UUID.")
+
+    if not job_id:
+        title = str(args.get("title") or "Direct Hire Service").strip()
+        price = args.get("price")
+        if price is None or float(price) <= 0:
+            price = 10000.0
+        lat, lon = resolve_coordinates(context, args)
+        payload = JobCreate(
+            title=title,
+            description=args.get("description") or f"Direct hire request for provider {provider_id}",
+            price=float(price),
+            latitude=lat,
+            longitude=lon,
+        )
+        created_job = await context.jobs.post_job(context.db, context.user, payload)
+        job_id = created_job.id
+
+    try:
+        job = await context.jobs.change_status(
+            context.db,
+            context.user,
+            job_id,
+            to_status="assigned",
+            provider_id=provider_id,
+        )
+        return {
+            "ok": True,
+            "job": _job_card(job),
+            "note": f"Provider successfully hired for job '{job.title}'. Room is now assigned.",
+        }
+    except ApplicationError as exc:
+        return {"ok": False, "status": "not_configured", "error": exc.external_message}
+    except Exception as exc:
+        return {"ok": False, "status": "not_configured", "error": f"Could not hire provider: {exc}"}
+
+
+async def _tool_request_identity_verification(
+    context: ToolContext, args: dict[str, Any]
+) -> dict[str, Any]:
+    """Initiate a single-use Concordium Zero-Knowledge verification challenge."""
+    purpose = str(args.get("purpose") or "personhood").strip()
+    if purpose not in ("personhood", "age_over_18"):
+        purpose = "personhood"
+
+    if not context.verification:
+        return {
+            "ok": False,
+            "status": "not_configured",
+            "error": "Concordium verification service is not initialized on this deployment.",
+        }
+
+    try:
+        req = await context.verification.request_verification(
+            context.db,
+            context.user,
+            purpose=purpose,
+        )
+        return {
+            "ok": True,
+            "status": "pending",
+            "nonce": req.nonce,
+            "purpose": req.purpose,
+            "bound_domain": req.bound_domain,
+            "qr_payload": req.qr_payload,
+            "note": f"Verification challenge created (nonce: {req.nonce[:8]}...). Open Concordium ID App or /profile to approve.",
+        }
+    except ApplicationError as exc:
+        return {"ok": False, "status": "not_configured", "error": exc.external_message}
+    except Exception as exc:
+        return {"ok": False, "status": "not_configured", "error": f"Verification challenge failed: {exc}"}
 
 
 async def _tool_accept_job(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
@@ -540,6 +731,7 @@ _TOOL_TABLE: dict[str, dict[str, Any]] = {
                 "price": {"type": "number", "description": "Budget in the job currency (NGN)."},
                 "latitude": {"type": "number"},
                 "longitude": {"type": "number"},
+                "image_urls": {"type": "array", "items": {"type": "string"}, "description": "Listing image URLs."},
             },
             "required": ["title", "description", "price"],
         },
@@ -558,10 +750,41 @@ _TOOL_TABLE: dict[str, dict[str, Any]] = {
                 "latitude": {"type": "number"},
                 "longitude": {"type": "number"},
                 "radius_km": {"type": "number", "description": "Service coverage radius in km."},
+                "image_urls": {"type": "array", "items": {"type": "string"}, "description": "Listing image URLs."},
             },
             "required": ["title", "price"],
         },
         "handler": _tool_create_service_listing,
+        "read_only": False,
+    },
+    "update_service_listing": {
+        "description": "Provider side: update an existing service listing (title, description, price, category, images).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "service_id": {"type": "string", "description": "UUID of the listing to update."},
+                "title": {"type": "string", "description": "New title."},
+                "description": {"type": "string", "description": "New description."},
+                "price": {"type": "number", "description": "New price in NGN."},
+                "category_id": {"type": "string", "description": "New category UUID."},
+                "image_urls": {"type": "array", "items": {"type": "string"}, "description": "Updated image URLs."},
+                "is_active": {"type": "boolean", "description": "Whether the listing is active."},
+            },
+            "required": ["service_id"],
+        },
+        "handler": _tool_update_service_listing,
+        "read_only": False,
+    },
+    "create_category": {
+        "description": "Create a new marketplace service category when none matches the user's needs.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the new category to create."},
+            },
+            "required": ["name"],
+        },
+        "handler": _tool_create_category,
         "read_only": False,
     },
     "accept_job": {
@@ -589,6 +812,52 @@ _TOOL_TABLE: dict[str, dict[str, Any]] = {
             "required": ["job_id"],
         },
         "handler": _tool_apply_job,
+        "read_only": False,
+    },
+    "apply_to_job": {
+        "description": "Provider side: apply for an open job with an optional proposal message.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "job_id": {"type": "string", "description": "Job UUID to apply for."},
+                "message": {"type": "string", "description": "Proposal or introductory message."},
+                "proposed_price": {"type": "number", "description": "Optional proposed price in NGN."},
+            },
+            "required": ["job_id"],
+        },
+        "handler": _tool_apply_job,
+        "read_only": False,
+    },
+    "hire_provider": {
+        "description": "Hire a provider for a job, assigning them and locking the agreement.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "provider_id": {"type": "string", "description": "Provider user UUID."},
+                "job_id": {"type": "string", "description": "Optional job UUID to assign the provider to."},
+                "title": {"type": "string", "description": "Job title if creating a new direct hire job."},
+                "price": {"type": "number", "description": "Agreed price in NGN."},
+                "description": {"type": "string", "description": "Scope of work."},
+            },
+            "required": ["provider_id"],
+        },
+        "handler": _tool_hire_provider,
+        "read_only": False,
+    },
+    "request_identity_verification": {
+        "description": "Initiate a Concordium Zero-Knowledge verification challenge for personhood or age proof.",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "purpose": {
+                    "type": "string",
+                    "enum": ["personhood", "age_over_18"],
+                    "description": "Verification purpose.",
+                },
+            },
+            "required": [],
+        },
+        "handler": _tool_request_identity_verification,
         "read_only": False,
     },
     "send_message": {
@@ -704,8 +973,18 @@ def summarise_step(name: str, result: dict[str, Any]) -> str:
     if name == "accept_job":
         job = result.get("job") or {}
         return f"accepted \"{job.get('title')}\""
-    if name == "apply_job":
+    if name == "apply_job" or name == "apply_to_job":
         return f"applied to job {result.get('job_id', '')[:8]}"
+    if name == "update_service_listing":
+        return "updated service listing"
+    if name == "create_category":
+        cat = result.get("category") or {}
+        return f"created category '{cat.get('name', '')}'"
+    if name == "hire_provider":
+        job = result.get("job") or {}
+        return f"hired provider for \"{job.get('title', 'job')}\""
+    if name == "request_identity_verification":
+        return f"initiated {result.get('purpose', 'personhood')} verification"
     if name == "set_my_location":
         return f"saved location: {result.get('neighbourhood') or 'coordinates'}"
     if name == "send_message":

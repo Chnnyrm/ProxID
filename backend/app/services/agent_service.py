@@ -400,6 +400,102 @@ async def run_agent(
             actions=actions,
         )
 
+    # 5. Direct service listing creation: e.g. "create service listing '...' with price ... with images ..."
+    create_service_match = re.search(
+        r"(?:create|publish|offer)\s+(?:service\s+listing|service)\s+[\"']?([^\"'\n,]+?)[\"']?(?:\s+(?:with\s+)?(?:price\s+)?(\d+(?:\.\d+)?))?(?:\s+(?:with\s+)?images?\s+(\S+))?",
+        cmd_lower,
+    )
+    if create_service_match:
+        title = create_service_match.group(1).strip()
+        price = float(create_service_match.group(2) or 25000)
+        image = create_service_match.group(3)
+        images = [image] if image else []
+        tool_res = await execute_tool(
+            services.tool_context,
+            "create_service_listing",
+            {"title": title, "price": price, "image_urls": images},
+        )
+        if tool_res.get("ok"):
+            service = tool_res.get("service") or {}
+            reply = f"I have published your service listing \"{title}\" at NGN {price:,.0f} with {len(images)} image(s). Clients nearby can now book this service."
+            actions = [
+                {
+                    "id": f"view-service-{service.get('id')}",
+                    "label": "View Service Listing",
+                    "kind": "navigate",
+                    "target": f"/services/{service.get('id')}",
+                }
+            ]
+        else:
+            reply = f"Could not create service listing: {tool_res.get('error', 'unknown error')}"
+            actions = []
+
+        await agent_conversation_crud.add_turn(
+            db, conv.id, user.id, role="user", content=command, is_demo=user.is_demo
+        )
+        await agent_conversation_crud.add_turn(
+            db,
+            conv.id,
+            user.id,
+            role="assistant",
+            content=reply,
+            steps=[{"name": "create_service_listing", "arguments": {"title": title, "price": price, "image_urls": images}, "result": tool_res}],
+            used_tools=["create_service_listing"],
+            actions=actions,
+            degraded=False,
+            is_demo=user.is_demo,
+        )
+        return RunOutcome(
+            reply=reply,
+            steps=[{"name": "create_service_listing", "arguments": {"title": title, "price": price, "image_urls": images}, "result": tool_res}],
+            used_tools=["create_service_listing"],
+            degraded=False,
+            context=context,
+            actions=actions,
+        )
+
+    # 6. Direct category creation: e.g. "create category 'Solar Repair'"
+    cat_match = re.search(r"create\s+(?:a\s+)?category\s+[\"']?([^\"'\n]+?)[\"']?$", cmd_lower)
+    if cat_match:
+        cat_name = cat_match.group(1).strip()
+        tool_res = await execute_tool(
+            services.tool_context,
+            "create_category",
+            {"name": cat_name},
+        )
+        if tool_res.get("ok"):
+            reply = f"Category \"{cat_name}\" has been created and is now available across the platform."
+            actions = [
+                {"id": "browse-services", "label": "Browse Services", "kind": "navigate", "target": f"/services?category={cat_name}"}
+            ]
+        else:
+            reply = f"Could not create category: {tool_res.get('error', 'unknown error')}"
+            actions = []
+
+        await agent_conversation_crud.add_turn(
+            db, conv.id, user.id, role="user", content=command, is_demo=user.is_demo
+        )
+        await agent_conversation_crud.add_turn(
+            db,
+            conv.id,
+            user.id,
+            role="assistant",
+            content=reply,
+            steps=[{"name": "create_category", "arguments": {"name": cat_name}, "result": tool_res}],
+            used_tools=["create_category"],
+            actions=actions,
+            degraded=False,
+            is_demo=user.is_demo,
+        )
+        return RunOutcome(
+            reply=reply,
+            steps=[{"name": "create_category", "arguments": {"name": cat_name}, "result": tool_res}],
+            used_tools=["create_category"],
+            degraded=False,
+            context=context,
+            actions=actions,
+        )
+
     # Record current user turn
     await agent_conversation_crud.add_turn(
         db, conv.id, user.id, role="user", content=command, is_demo=user.is_demo
