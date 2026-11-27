@@ -105,6 +105,7 @@ class Container:
                 users=self.users,
                 categories=self.categories,
                 verification=self.verification,
+                spending=self.spending,
             ),
         )
 

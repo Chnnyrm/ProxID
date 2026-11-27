@@ -1,25 +1,33 @@
 /**
- * x402 facilitator for ProxID.
+ * x402 facilitator and client service for ProxID.
  *
  * A facilitator verifies a client's signed payment and, when it is valid, submits it to
  * the chain having agreed to pay the network fee. ProxID's agent needs this so it can pay
  * a provider without holding the provider's keys and without the user paying gas.
  *
- * The chain work is done by @x402/concordium. This file is the HTTP surface around it,
- * because the package ships the protocol, not a server.
+ * DESIGN DECISION: Two funded accounts, and neither belongs to a user:
+ *   sponsor: 3LGnFKnaQpMCsTUd3LhefNJ1Fain5d4A31i3ZTzuRhzE9tLgXW   pays the network fee
+ *   payer:   4EuBPU3CKVWkWxHxUtq9fhazzuCx9dWFkdL5TjUTwkAwZ3bj98   sends the payment
+ * Both are operated by ProxID's backend and are already set in the Render environment.
+ * A user never holds a key. The agent spends on the person's behalf after they consent,
+ * and the person sees a price, an approval, and a receipt.
+ * This is the design decision that makes the product usable: if a person had to manage
+ * a wallet, none of them would.
  *
- * Endpoints, matching the x402 facilitator specification:
- *   GET  /health      liveness, and whether a sponsor key is present
+ * The chain work is done by @x402/concordium. This file provides the HTTP surface:
+ *   GET  /health      liveness, sponsor and payer presence
  *   GET  /supported   the schemes and networks this facilitator will serve
+ *   POST /pay         client signs payment requirements and returns signed payload
  *   POST /verify      check a signed payment without submitting it
  *   POST /settle      submit a signed payment and return the transaction hash
  *
- * Every failure returns a reason a caller can act on. Nothing is reported as settled
- * unless it settled.
+ * Pure ASCII only.
  */
 
 import http from 'node:http'
 import { ExactConcordiumScheme } from '@x402/concordium/exact/facilitator'
+import { ExactConcordiumScheme as ClientScheme } from '@x402/concordium/exact/client'
+import { AccountAddress, buildBasicAccountSigner } from '@concordium/web-sdk'
 import {
   CONCORDIUM_TESTNET_CAIP2,
   CONCORDIUM_TESTNET_GRPC,
@@ -28,8 +36,6 @@ import {
 
 const PORT = Number(process.env.PORT || 8080)
 
-// Taken from the SDK rather than written here, so a change upstream is picked up and a
-// typo in a CAIP-2 identifier cannot silently point the facilitator at another network.
 const NETWORK = process.env.CONCORDIUM_NETWORK_CAIP2 || CONCORDIUM_TESTNET_CAIP2
 
 const RPC = process.env.CONCORDIUM_GRPC || CONCORDIUM_TESTNET_GRPC
@@ -39,13 +45,15 @@ const NODE_PORT = Number(NODE_PORT_RAW || 20000)
 const SPONSOR_ADDRESS = process.env.X402_SPONSOR_ADDRESS || ''
 const SPONSOR_PRIVATE_KEY = process.env.X402_SPONSOR_PRIVATE_KEY || ''
 
+const PAYER_ADDRESS = process.env.X402_PAYER_ADDRESS || ''
+const PAYER_PRIVATE_KEY = process.env.X402_PAYER_PRIVATE_KEY || ''
+
 let scheme = null
 let initError = null
 
 /**
- * Build the scheme once at boot. If the sponsor key is absent the service still starts
- * and reports honestly instead of pretending to be ready, so a missing variable shows up
- * in /health rather than as a confusing failure during a payment.
+ * Build the facilitator scheme at boot. If the sponsor key is absent the service still starts
+ * and reports honestly in /health.
  */
 function initialise() {
   if (!SPONSOR_ADDRESS || !SPONSOR_PRIVATE_KEY) {
@@ -105,10 +113,24 @@ function readJson(req, limitBytes = 262144) {
 
 /** Both /verify and /settle take the same shape: { paymentPayload, paymentRequirements }. */
 function parsePaymentRequest(body) {
-  const payload = body?.paymentPayload ?? body?.payload
+  let payload = body?.paymentPayload ?? body?.payload
   const requirements = body?.paymentRequirements ?? body?.requirements
   if (!payload) throw new Error('missing paymentPayload')
   if (!requirements) throw new Error('missing paymentRequirements')
+  if (!payload.accepted && requirements) {
+    if (payload.signedTransaction || payload.sender) {
+      payload = {
+        x402Version: Number(requirements.x402Version || 2),
+        accepted: requirements,
+        payload,
+      }
+    } else {
+      payload = {
+        ...payload,
+        accepted: requirements,
+      }
+    }
+  }
   return { payload, requirements }
 }
 
@@ -120,6 +142,8 @@ const routes = {
       node: `${NODE_HOST}:${NODE_PORT}`,
       sponsorAddress: SPONSOR_ADDRESS || null,
       sponsorKeyPresent: Boolean(SPONSOR_PRIVATE_KEY),
+      payerAddress: PAYER_ADDRESS || null,
+      payerKeyPresent: Boolean(PAYER_PRIVATE_KEY),
       detail: initError,
     })
   },
@@ -129,6 +153,87 @@ const routes = {
       kinds: scheme ? [{ scheme: 'exact', network: NETWORK, extra: scheme.getExtra(NETWORK) ?? {} }] : [],
       signers: scheme ? { [NETWORK]: scheme.getSigners(NETWORK) } : {},
     })
+  },
+
+  /**
+   * POST /pay
+   * Accepts { requirements, payerPrivateKeyEnv? } and returns a signed payment payload.
+   * Uses @x402/concordium/exact/client to sign transactions on the payer's behalf.
+   *
+   * Never logs a private key, never returns a private key, never echoes a private key.
+   * /pay returns the signed payload only; it does not settle.
+   */
+  'POST /pay': async (req, res) => {
+    let body
+    try {
+      body = await readJson(req)
+    } catch (error) {
+      return send(res, 400, { error: error.message })
+    }
+
+    const payerAddress = body?.payerAddress || PAYER_ADDRESS
+    const keyEnvName = body?.payerPrivateKeyEnv || 'X402_PAYER_PRIVATE_KEY'
+    const payerPrivateKey = body?.payerPrivateKey || process.env[keyEnvName] || PAYER_PRIVATE_KEY
+
+    if (!payerAddress || !payerPrivateKey) {
+      const missing = []
+      if (!payerAddress) missing.push('X402_PAYER_ADDRESS')
+      if (!payerPrivateKey) missing.push(keyEnvName)
+      return send(res, 503, {
+        error: `missing payer credentials: set ${missing.join(' and ')}`,
+      })
+    }
+
+    const requirements = body?.requirements ?? body?.paymentRequirements
+    if (!requirements) {
+      return send(res, 400, { error: 'missing requirements in request body' })
+    }
+
+    // Enrich requirements if feePayer or network was omitted
+    if (!requirements.network) {
+      requirements.network = NETWORK
+    }
+    if (!requirements.extra) {
+      requirements.extra = {}
+    }
+    if (!requirements.extra.feePayer && SPONSOR_ADDRESS) {
+      requirements.extra.feePayer = SPONSOR_ADDRESS
+    }
+    if (!requirements.maxTimeoutSeconds || requirements.maxTimeoutSeconds <= 5) {
+      requirements.maxTimeoutSeconds = 60
+    }
+
+    try {
+      const clientSigner = {
+        accountAddress: AccountAddress.fromBase58(payerAddress),
+        signer: buildBasicAccountSigner(payerPrivateKey),
+      }
+      const client = new ClientScheme(clientSigner, {
+        grpcUrl: `${NODE_HOST}:${NODE_PORT}`,
+        useTls: true,
+      })
+      const version = Number(requirements.x402Version || 2)
+      const created = await client.createPaymentPayload(version, requirements)
+
+      const paymentPayload = {
+        x402Version: version,
+        accepted: {
+          scheme: requirements.scheme || 'exact',
+          network: requirements.network,
+        },
+        payload: created.payload,
+      }
+
+      send(res, 200, {
+        x402Version: version,
+        accepted: paymentPayload.accepted,
+        payload: paymentPayload.payload,
+        paymentPayload,
+      })
+    } catch (error) {
+      const safeMessage = error?.message?.replace(/[0-9a-fA-F]{64}/g, '[REDACTED]') || String(error)
+      send(res, 500, { error: `payment signing failed: ${safeMessage}` })
+    }
   },
 
   'POST /verify': async (req, res) => {
@@ -188,6 +293,7 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`  network  ${NETWORK}`)
   console.log(`  node     ${NODE_HOST}:${NODE_PORT}`)
   console.log(`  sponsor  ${SPONSOR_ADDRESS || 'MISSING'}`)
+  console.log(`  payer    ${PAYER_ADDRESS || 'MISSING'}`)
   if (initError) console.error(`  NOT READY: ${initError}`)
 })
 
