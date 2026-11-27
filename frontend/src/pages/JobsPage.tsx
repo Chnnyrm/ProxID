@@ -11,6 +11,7 @@ import { Briefcase, Clock, Filter, Map as MapIcon, MapPin, Plus, Search, Sliders
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { CategorySelect } from '@/components/CategorySelect'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { ImageMultiUpload } from '@/components/ImageMultiUpload'
@@ -516,27 +517,14 @@ function PostJobForm({
             required
           />
 
-          {categories.length > 0 ? (
-            <div>
-              <label htmlFor="job-category-select" className="mb-1 block text-sm font-medium text-ink">
-                Category
-              </label>
-              <select
-                id="job-category-select"
-                value={categoryId}
-                onChange={(e) => setCategoryId(e.target.value)}
-                disabled={submitting}
-                className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-sm text-ink focus:outline-none"
-              >
-                <option value="">Select a category (optional)</option>
-                {categories.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
+          <CategorySelect
+            id="job-category-select"
+            value={categoryId}
+            onChange={setCategoryId}
+            categories={categories}
+            disabled={submitting}
+            placeholder="Select a category (optional)"
+          />
 
           <TextAreaField
             label="What needs doing"

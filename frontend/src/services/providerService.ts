@@ -5,7 +5,7 @@
 import { api, query } from '@/lib/api'
 import type { CategoriesResponse, ListingsResponse, ProvidersResponse } from '@/lib/contracts'
 import type { Coordinates } from '@/lib/contracts'
-import type { ServiceListing } from '@/types/api'
+import type { Category, ServiceListing } from '@/types/api'
 
 export const providerService = {
   /** Providers around a point, nearest first. */
@@ -40,6 +40,10 @@ export const providerService = {
 
   /** The categories the marketplace shares. */
   categories: () => api.get<CategoriesResponse>('/categories'),
+
+  /** Create a new category inline. */
+  createCategory: (name: string, description?: string) =>
+    api.post<Category>('/categories', { name, description }),
 
   /** One listing. */
   listing: (id: string) => api.get<ServiceListing>(`/services/${id}`),

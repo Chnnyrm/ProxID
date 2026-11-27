@@ -24,6 +24,7 @@ import {
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 
+import { CategorySelect } from '@/components/CategorySelect'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { ImageMultiUpload } from '@/components/ImageMultiUpload'
@@ -412,23 +413,12 @@ export function ServicesPage() {
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-ink mb-1">
-                  Category
-                </label>
-                <select
-                  value={pubCatId}
-                  onChange={(e) => setPubCatId(e.target.value)}
-                  className="w-full rounded-xl border border-line bg-sunken/40 px-3 py-2 text-xs text-ink focus:outline-none focus:ring-1 focus:ring-structural"
-                >
-                  <option value="">Select Category</option>
-                  {categoriesQuery.data?.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CategorySelect
+                value={pubCatId}
+                onChange={setPubCatId}
+                categories={categoriesQuery.data}
+                placeholder="Select Category (optional)"
+              />
 
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-ink mb-1">
