@@ -8,10 +8,6 @@
     "api/index.py": {
       "maxDuration": 60,
       "memory": 1024
-    },
-    "api/netprobe.mjs": {
-      "maxDuration": 20,
-      "memory": 512
     }
   },
   "rewrites": [
