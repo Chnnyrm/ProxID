@@ -22,17 +22,21 @@ import uuid
 from dataclasses import dataclass
 from typing import Any
 
+import httpx
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..core.errors import ApplicationError
 from ..core.logging import get_logger
 from ..crud import agent_log as agent_log_crud
+from ..crud import x402_receipt as receipt_crud
+from ..models.job import Job
 from ..models.user import User
 from ..schemas.job import JobCreate
 from ..schemas.service import ServiceCreate, ServiceUpdate
 from .job_service import JobService
 from .message_service import MessageService
-from .payment_service import PaymentService
+from .payment_service import PaymentService, start_of_utc_day
 from .service_service import ServiceListingService
 from .user_service import UserService
 
@@ -57,6 +61,7 @@ class ToolContext:
     users: UserService
     categories: Any = None
     verification: Any = None
+    spending: Any = None
 
 
 def _trim(text: str | None, limit: int = DESCRIPTION_CHAR_LIMIT) -> str:
@@ -670,6 +675,179 @@ async def _tool_settle_x402_payment(
     }
 
 
+async def _tool_pay_for_service(
+    context: ToolContext, args: dict[str, Any]
+) -> dict[str, Any]:
+    """Spend on user's behalf via x402 on Concordium.
+
+    Requires human consent, checks spending limits and recipient allowlist,
+    calls facilitator /pay to sign with the managed payer key, and settles
+    on Concordium testnet, storing receipt and updating job.
+    """
+    raw_job_id = args.get("job_id")
+    job_id = None
+    target_job = None
+    if raw_job_id:
+        try:
+            job_id = uuid.UUID(str(raw_job_id))
+            target_job = await context.jobs.get_by_id(context.db, job_id)
+        except Exception:
+            pass
+
+    if target_job is None:
+        result = await context.db.execute(
+            select(Job).where(Job.client_id == context.user.id).order_by(Job.created_at.desc()).limit(1)
+        )
+        target_job = result.scalar_one_or_none()
+        if target_job is None:
+            result = await context.db.execute(select(Job).order_by(Job.created_at.desc()).limit(1))
+            target_job = result.scalar_one_or_none()
+        if target_job:
+            job_id = target_job.id
+
+    raw_amount = args.get("amount")
+    if raw_amount is not None:
+        try:
+            amount_val = float(raw_amount)
+        except (ValueError, TypeError):
+            amount_val = 1.0
+    elif target_job and target_job.price:
+        amount_val = 1.0
+    else:
+        amount_val = 1.0
+
+    if amount_val > 10000:
+        amount_microccd = int(amount_val)
+        amount_ccd = float(amount_val) / 1e6
+    else:
+        amount_ccd = amount_val
+        amount_microccd = int(amount_ccd * 1e6)
+
+    recipient = args.get("recipient_account") or args.get("pay_to")
+    if not recipient and target_job and target_job.provider_id:
+        provider = await context.users.get_by_id(context.db, target_job.provider_id)
+        if provider and provider.concordium_account_address:
+            if len(provider.concordium_account_address) >= 45 and not provider.concordium_account_address.startswith("demo-"):
+                recipient = provider.concordium_account_address
+
+    if not recipient:
+        recipient = (
+            context.payments._settings.CONCORDIUM_X402_MERCHANT_ACCOUNT
+            or context.payments._settings.X402_SPONSOR_ADDRESS
+            or "3LGnFKnaQpMCsTUd3LhefNJ1Fain5d4A31i3ZTzuRhzE9tLgXW"
+        )
+
+    # 1. Check consent
+    has_consent = bool(args.get("consent") or args.get("approved") or args.get("confirm"))
+    if not has_consent:
+        return {
+            "ok": False,
+            "requires_consent": True,
+            "status": "consent_required",
+            "amount": amount_ccd,
+            "asset": "CCD",
+            "recipient_account": recipient,
+            "job_id": str(job_id) if job_id else None,
+            "message": (
+                f"proxidAI needs your consent before spending. "
+                f"Do you approve paying {amount_ccd:,.2f} CCD to {recipient[:10]}...?"
+            ),
+            "note": "Payment paused awaiting human consent.",
+        }
+
+    # 2. Check spending policy (caps and allowlist)
+    spending_policy = context.spending or context.payments._spending
+    spent_today = await receipt_crud.sum_settled_since(
+        context.db, context.user.id, start_of_utc_day()
+    )
+    agent_acc = context.user.agent_account_address or context.payments._settings.X402_PAYER_ADDRESS
+    decision = spending_policy.check_payment(
+        agent_account=agent_acc,
+        recipient_account=recipient,
+        amount=amount_ccd,
+        spent_today=spent_today,
+    )
+    if not decision.allowed:
+        return {
+            "ok": False,
+            "status": "refused_by_policy",
+            "reason": decision.reason,
+            "error": decision.detail,
+            "note": f"Payment refused by safety policy: {decision.detail}",
+        }
+
+    # 3. Obtain payment quote
+    description = str(
+        args.get("description")
+        or (f"ProxID job payment: {target_job.title}" if target_job else "ProxID verified service payment")
+    )
+    quote = await context.payments.get_quote(
+        amount=str(amount_microccd),
+        asset="CCD",
+        pay_to=recipient,
+        description=description,
+        job_id=job_id,
+    )
+
+    # 4. Sign via facilitator client /pay
+    facilitator_url = (
+        context.payments._settings.X402_FACILITATOR_URL or "https://proxid.onrender.com"
+    ).rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=25.0) as http_client:
+            pay_resp = await http_client.post(
+                f"{facilitator_url}/pay",
+                headers={"Content-Type": "application/json"},
+                json={"requirements": quote},
+            )
+            if pay_resp.status_code != 200:
+                err_body = pay_resp.json() if pay_resp.content else {}
+                err_msg = err_body.get("error") or f"HTTP {pay_resp.status_code}"
+                return _error(f"Payer client failed to sign transaction: {err_msg}")
+            pay_data = pay_resp.json()
+    except Exception as exc:
+        return _error(f"Failed to communicate with /pay client signer: {exc}")
+
+    payment_payload = pay_data.get("paymentPayload") or pay_data
+    signed_requirements = pay_data.get("requirements") or quote
+
+    # 5. Settle on Concordium testnet
+    correlation_id = f"agent-pay-{uuid.uuid4().hex[:12]}"
+    settle_outcome = await context.payments.verify_and_settle(
+        context.db,
+        payment_payload=payment_payload,
+        requirements=signed_requirements,
+        actor=context.user,
+        correlation_id=correlation_id,
+        job_id=job_id,
+    )
+
+    if not settle_outcome.get("success"):
+        error_msg = settle_outcome.get("errorReason") or "Settlement failed on chain"
+        return {
+            "ok": False,
+            "status": "settlement_failed",
+            "error": error_msg,
+            "note": error_msg,
+        }
+
+    tx_hash = settle_outcome["txHash"]
+    return {
+        "ok": True,
+        "status": "settled",
+        "tx_hash": tx_hash,
+        "transaction": tx_hash,
+        "explorer_url": f"https://testnet.ccdscan.io/?r={tx_hash}",
+        "amount": amount_ccd,
+        "asset": "CCD",
+        "payer": settle_outcome.get("payer"),
+        "payee": settle_outcome.get("payee"),
+        "receipt_id": settle_outcome.get("receiptId"),
+        "job_id": str(job_id) if job_id else None,
+        "note": f"Payment of {amount_ccd:,.2f} CCD settled on Concordium testnet. Tx: {tx_hash}",
+    }
+
+
 async def _tool_my_jobs(context: ToolContext, args: dict[str, Any]) -> dict[str, Any]:
     """The user's own jobs, as a compact list."""
     jobs = await context.jobs.list_mine(context.db, context.user, limit=10, offset=0)
@@ -912,6 +1090,26 @@ _TOOL_TABLE: dict[str, dict[str, Any]] = {
         "handler": _tool_settle_x402_payment,
         "read_only": False,
     },
+    "pay_for_service": {
+        "description": (
+            "Pay for a service or job via x402 on Concordium. Requires user consent, "
+            "validates spending policy and recipient allowlist, signs via managed payer "
+            "account, and settles on-chain."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "job_id": {"type": "string", "description": "The job id to pay for."},
+                "amount": {"type": "number", "description": "Amount in CCD to pay."},
+                "recipient_account": {"type": "string", "description": "Target Concordium address."},
+                "consent": {"type": "boolean", "description": "Set to true when the user has approved/consented to the payment."},
+                "description": {"type": "string", "description": "Payment memo or description."},
+            },
+            "required": [],
+        },
+        "handler": _tool_pay_for_service,
+        "read_only": False,
+    },
     "my_jobs": {
         "description": "List the user's own jobs: the ones they posted and the ones they are working on.",
         "parameters": {"type": "object", "properties": {}, "required": []},
@@ -993,6 +1191,12 @@ def summarise_step(name: str, result: dict[str, Any]) -> str:
         return f"payment {result.get('status')}"
     if name == "settle_x402_payment":
         return f"settlement {result.get('status')}"
+    if name == "pay_for_service":
+        if result.get("tx_hash"):
+            return f"settled payment of {result.get('amount')} CCD (tx: {result.get('tx_hash')[:10]}...)"
+        if result.get("requires_consent"):
+            return f"requested approval for payment of {result.get('amount')} CCD"
+        return f"payment {result.get('status', 'attempted')}"
     if name == "my_jobs":
         return f"reviewed {result.get('count', 0)} job(s)"
     return name

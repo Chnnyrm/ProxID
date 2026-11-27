@@ -496,6 +496,121 @@ async def run_agent(
             actions=actions,
         )
 
+    # 7. Explicit payment / settlement commands: e.g. "pay for job <uuid>", "approve payment", "pay 1 CCD"
+    is_pay_cmd = bool(
+        re.search(r"\b(?:pay|settle|transfer)\b", cmd_lower)
+        and (
+            "job" in cmd_lower
+            or "service" in cmd_lower
+            or "sink" in cmd_lower
+            or "ccd" in cmd_lower
+            or "northgate" in cmd_lower
+            or "approve" in cmd_lower
+            or "confirm" in cmd_lower
+        )
+    )
+    if is_pay_cmd:
+        pay_job_match = re.search(r"([0-9a-f-]{36})", cmd_lower)
+        target_job_str = pay_job_match.group(1) if pay_job_match else None
+
+        has_consent = any(word in cmd_lower for word in ("approve", "confirm", "yes", "consent", "proceed"))
+        amount_match = re.search(r"(\d+(?:\.\d+)?)\s*ccd", cmd_lower)
+        pay_amount = float(amount_match.group(1)) if amount_match else 1.0
+
+        tool_args: dict[str, Any] = {
+            "amount": pay_amount,
+            "consent": has_consent,
+        }
+        if target_job_str:
+            tool_args["job_id"] = target_job_str
+
+        tool_res = await execute_tool(
+            services.tool_context,
+            "pay_for_service",
+            tool_args,
+            job_id=uuid.UUID(target_job_str) if target_job_str else None,
+        )
+
+        step_data = {
+            "tool": "pay_for_service",
+            "summary": summarise_step("pay_for_service", tool_res),
+            "succeeded": bool(tool_res.get("ok")),
+            "arguments": tool_args,
+            "result": tool_res,
+        }
+
+        if tool_res.get("ok") and tool_res.get("status") == "settled":
+            tx_hash = tool_res["tx_hash"]
+            reply = (
+                f"I have settled the payment of {pay_amount:,.2f} CCD on Concordium testnet.\n\n"
+                f"Transaction hash: {tx_hash}\n"
+                f"The payment is verified and recorded on-chain."
+            )
+            actions = [
+                {
+                    "id": f"explorer-{tx_hash[:8]}",
+                    "label": "View on CCDScan",
+                    "kind": "external",
+                    "target": f"https://testnet.ccdscan.io/?r={tx_hash}",
+                }
+            ]
+            if tool_res.get("job_id"):
+                actions.append({
+                    "id": f"room-{tool_res['job_id'][:8]}",
+                    "label": "View Job Room",
+                    "kind": "navigate",
+                    "target": f"/jobs/{tool_res['job_id']}/room",
+                })
+        elif tool_res.get("requires_consent"):
+            recip = tool_res.get("recipient_account", "")
+            recip_short = recip[:10] + "..." if len(recip) > 10 else recip
+            reply = (
+                f"proxidAI requires your consent before spending from the managed account.\n\n"
+                f"Amount: {pay_amount:,.2f} CCD\n"
+                f"Recipient: {recip_short}\n"
+                f"Network: Concordium testnet (gas sponsored)\n\n"
+                f"Do you approve this payment?"
+            )
+            approve_cmd = f"approve payment of {pay_amount} ccd"
+            if target_job_str:
+                approve_cmd += f" for job {target_job_str}"
+            actions = [
+                {
+                    "id": "approve-payment",
+                    "label": f"Approve {pay_amount} CCD",
+                    "kind": "command",
+                    "target": approve_cmd,
+                }
+            ]
+        else:
+            err = tool_res.get("error") or tool_res.get("note") or "Payment could not be completed"
+            reply = f"Payment was not completed: {err}"
+            actions = []
+
+        await agent_conversation_crud.add_turn(
+            db, conv.id, user.id, role="user", content=command, is_demo=user.is_demo
+        )
+        await agent_conversation_crud.add_turn(
+            db,
+            conv.id,
+            user.id,
+            role="assistant",
+            content=reply,
+            steps=[step_data],
+            used_tools=["pay_for_service"],
+            actions=actions,
+            degraded=False,
+            is_demo=user.is_demo,
+        )
+        return RunOutcome(
+            reply=reply,
+            steps=[step_data],
+            used_tools=["pay_for_service"],
+            degraded=False,
+            context=context,
+            actions=actions,
+        )
+
     # Record current user turn
     await agent_conversation_crud.add_turn(
         db, conv.id, user.id, role="user", content=command, is_demo=user.is_demo
