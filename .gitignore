@@ -30,3 +30,6 @@ docs/agent/
 docs/landing-copy.md
 docs/reference/
 .~lock.*#
+
+# x402 service dependencies
+x402/node_modules/

@@ -1,0 +1,16 @@
+{
+  "name": "proxid-x402-facilitator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "x402 facilitator for ProxID, sponsoring Concordium testnet settlements for proxidAI",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "check": "node src/selftest.mjs"
+  },
+  "dependencies": {
+    "@x402/concordium": "2.32.0",
+    "@x402/core": "*"
+  }
+}
