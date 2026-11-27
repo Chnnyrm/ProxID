@@ -542,12 +542,18 @@ async def seed(session: AsyncSession) -> SeedReport:
         provider_id = provider_ids.get(spec.provider_key) if spec.provider_key else None
         job_imgs = _SEED_JOB_IMAGES.get(spec.title) or []
         cover_job_img = job_imgs[0] if job_imgs else None
+        # Open jobs belong to a community resident so the demo user can view and apply to them
+        job_client_id = (
+            provider_ids.get("ifeoma", demo_user_id)
+            if spec.status == "open"
+            else demo_user_id
+        )
         job, created = await _upsert(
             session,
             Job,
             job_id,
             {
-                "client_id": demo_user_id,
+                "client_id": job_client_id,
                 "provider_id": provider_id,
                 "service_listing_id": None,
                 "category_id": category_ids[spec.category_slug],
