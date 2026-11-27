@@ -40,7 +40,7 @@ import { useLocationStore } from '@/store/locationStore'
 import type { ServiceListing } from '@/types/api'
 
 export function ServicesPage() {
-  const { isSignedIn } = useAuth()
+  const { isSignedIn, isLoading } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialCategory = searchParams.get('category') || 'all'
   const initialSearch = searchParams.get('q') || ''
@@ -62,6 +62,7 @@ export function ServicesPage() {
       setSelectedCategory(cat)
     }
     if (searchParams.get('compose') === '1') {
+      if (isLoading) return
       if (!isSignedIn) {
         window.dispatchEvent(
           new CustomEvent('proxid-require-auth', {
@@ -74,7 +75,7 @@ export function ServicesPage() {
       searchParams.delete('compose')
       setSearchParams(searchParams, { replace: true })
     }
-  }, [searchParams, setSearchParams, isSignedIn])
+  }, [searchParams, setSearchParams, isSignedIn, isLoading])
 
   // Location and Radius
   const coordinates = useLocationStore((state) => state.coordinates)

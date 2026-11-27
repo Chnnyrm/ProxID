@@ -32,7 +32,7 @@ type Tab = 'nearby' | 'browse' | 'mine'
 type SortOrder = 'newest' | 'price_high' | 'price_low'
 
 export function JobsPage() {
-  const { isSignedIn } = useAuth()
+  const { isSignedIn, isLoading } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const [tab, setTab] = useState<Tab>('nearby')
   const [searchQuery, setSearchQuery] = useState('')
@@ -44,6 +44,7 @@ export function JobsPage() {
   // Auto-open compose form if navigating with ?compose=1 (PWA shortcut)
   useEffect(() => {
     if (searchParams.get('compose') === '1') {
+      if (isLoading) return
       if (!isSignedIn) {
         window.dispatchEvent(
           new CustomEvent('proxid-require-auth', {
@@ -56,7 +57,7 @@ export function JobsPage() {
       searchParams.delete('compose')
       setSearchParams(searchParams, { replace: true })
     }
-  }, [searchParams, setSearchParams, isSignedIn])
+  }, [searchParams, setSearchParams, isSignedIn, isLoading])
 
   const coordinates = useLocationStore((state) => state.coordinates)
   const radiusKm = useLocationStore((state) => state.radiusKm)
