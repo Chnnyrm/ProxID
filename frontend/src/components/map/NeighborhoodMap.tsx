@@ -21,7 +21,7 @@ import { Circle, MapContainer, Marker, Popup, TileLayer, useMap, useMapEvents } 
 import { Skeleton } from '@/components/ui/skeleton'
 import { useMapConfig } from '@/hooks/useProviders'
 import { distance as formatDistance, money } from '@/lib/format'
-import { createPinIcon } from '@/lib/mapPins'
+import { createClusterIcon, createPinIcon } from '@/lib/mapPins'
 import type { Coordinates } from '@/lib/contracts'
 
 export interface MapPoint {
@@ -36,6 +36,7 @@ export interface MapPoint {
   verified?: boolean
   avatarUrl?: string | null
   href?: string
+  isInsideRadius?: boolean
 }
 
 const FALLBACK_TILE = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png'
@@ -104,6 +105,174 @@ function ClearOnMapClick({ onClear }: { onClear: () => void }) {
   return null
 }
 
+function MapMarkersAndClusters({
+  destackedPoints,
+  selectedId,
+  onSelect,
+}: {
+  destackedPoints: MapPoint[]
+  selectedId: string | null
+  onSelect?: (point: MapPoint) => void
+}) {
+  const map = useMap()
+  const [zoom, setZoom] = useState(() => map.getZoom())
+
+  useMapEvents({
+    zoomend: () => {
+      setZoom(map.getZoom())
+    },
+  })
+
+  // Cluster points when zoomed out past threshold (zoom <= 11)
+  const isClustered = zoom <= 11
+
+  const { clusters, individualPoints } = useMemo(() => {
+    if (!isClustered) {
+      return { clusters: [], individualPoints: destackedPoints }
+    }
+
+    const step = 360 / Math.pow(2, zoom + 2)
+    const grid = new Map<string, MapPoint[]>()
+
+    for (const pt of destackedPoints) {
+      const key = `${Math.floor(pt.latitude / step)}_${Math.floor(pt.longitude / step)}`
+      const cell = grid.get(key)
+      if (cell) {
+        cell.push(pt)
+      } else {
+        grid.set(key, [pt])
+      }
+    }
+
+    const clusterList: {
+      id: string
+      latitude: number
+      longitude: number
+      count: number
+      dimmed: boolean
+      isJob: boolean
+    }[] = []
+    const individuals: MapPoint[] = []
+
+    for (const [key, group] of grid.entries()) {
+      if (group.length === 1) {
+        individuals.push(group[0])
+      } else {
+        const avgLat = group.reduce((sum, p) => sum + p.latitude, 0) / group.length
+        const avgLng = group.reduce((sum, p) => sum + p.longitude, 0) / group.length
+        const anyInside = group.some((p) => p.isInsideRadius)
+        const allJobs = group.every((p) => p.kind === 'job')
+        clusterList.push({
+          id: `cluster-${key}`,
+          latitude: avgLat,
+          longitude: avgLng,
+          count: group.length,
+          dimmed: !anyInside,
+          isJob: allJobs,
+        })
+      }
+    }
+
+    return { clusters: clusterList, individualPoints: individuals }
+  }, [destackedPoints, isClustered, zoom])
+
+  return (
+    <>
+      {/* Clusters */}
+      {clusters.map((cluster) => (
+        <Marker
+          key={cluster.id}
+          position={[cluster.latitude, cluster.longitude]}
+          icon={createClusterIcon(cluster.count, cluster.dimmed, cluster.isJob)}
+          eventHandlers={{
+            click: () => {
+              map.setView([cluster.latitude, cluster.longitude], Math.min(zoom + 3, 14), {
+                animate: true,
+              })
+            },
+          }}
+        />
+      ))}
+
+      {/* Individual Points */}
+      {individualPoints.map((point) => (
+        <Marker
+          key={point.id}
+          position={[point.latitude, point.longitude]}
+          icon={createPinIcon(
+            {
+              id: point.id,
+              kind: point.kind,
+              title: point.title,
+              price: point.price,
+              avatarUrl: point.avatarUrl,
+              verified: point.verified,
+              dimmed: point.isInsideRadius === false,
+            },
+            point.id === selectedId,
+          )}
+          eventHandlers={{
+            click: () => {
+              onSelect?.(point)
+            },
+          }}
+        >
+          <Popup className="proxid-editorial-popup">
+            <div className="min-w-[190px] p-1 text-ink font-sans">
+              <div className="flex items-center justify-between gap-2 border-b border-line pb-1.5">
+                <span className="font-mono text-[9px] uppercase tracking-wider text-muted">
+                  {point.kind === 'provider' ? 'Provider Node' : 'Job Listing'}
+                </span>
+                {point.verified && (
+                  <span className="flex items-center gap-1 font-mono text-[9px] text-ink font-bold">
+                    <img
+                      src="/brands/concordium.svg"
+                      className="h-3 w-3 inline-block"
+                      alt="Concordium"
+                    />
+                    CONCORDIUM ATTESTED
+                  </span>
+                )}
+              </div>
+
+              <p className="mt-2 text-sm font-semibold text-ink leading-tight">{point.title}</p>
+              {point.subtitle ? (
+                <p className="mt-0.5 text-xs text-muted leading-tight">{point.subtitle}</p>
+              ) : null}
+
+              <div className="mt-2 flex items-center justify-between text-xs text-muted font-mono">
+                <span>
+                  {point.distanceKm !== null && point.distanceKm !== undefined
+                    ? formatDistance(point.distanceKm)
+                    : 'Local'}
+                </span>
+                {point.price !== null && point.price !== undefined ? (
+                  <span className="font-bold text-ink">{money(point.price)}</span>
+                ) : null}
+              </div>
+
+              <div className="mt-2.5 pt-1.5 border-t border-line">
+                {point.href ? (
+                  <a
+                    href={point.href}
+                    className="inline-block w-full text-center rounded-lg border border-structural bg-surface py-1 text-xs font-semibold text-ink hover:bg-sunken transition-colors"
+                  >
+                    {point.kind === 'provider' ? 'View Profile' : 'Inspect Job'}
+                  </a>
+                ) : (
+                  <div className="text-[10px] text-muted font-mono text-center">
+                    Verified On Concordium
+                  </div>
+                )}
+              </div>
+            </div>
+          </Popup>
+        </Marker>
+      ))}
+    </>
+  )
+}
+
 export function NeighborhoodMap({
   center,
   radiusKm,
@@ -123,27 +292,6 @@ export function NeighborhoodMap({
   const [selectedId, setSelectedId] = useState<string | null>(null)
 
   const destackedPoints = useMemo(() => destackPoints(points), [points])
-
-  const icons = useMemo(() => {
-    const map = new Map<string, L.DivIcon>()
-    for (const point of destackedPoints) {
-      map.set(
-        point.id,
-        createPinIcon(
-          {
-            id: point.id,
-            kind: point.kind,
-            title: point.title,
-            price: point.price,
-            avatarUrl: point.avatarUrl,
-            verified: point.verified,
-          },
-          point.id === selectedId,
-        ),
-      )
-    }
-    return map
-  }, [destackedPoints, selectedId])
 
   const tileUrl = mapConfig?.tile_url ?? FALLBACK_TILE
   const attribution = mapConfig?.attribution ?? FALLBACK_ATTRIBUTION
@@ -186,84 +334,17 @@ export function NeighborhoodMap({
           />
         ) : null}
 
-        {destackedPoints.map((point) => (
-          <Marker
-            key={point.id}
-            position={[point.latitude, point.longitude]}
-            icon={
-              icons.get(point.id) ??
-              createPinIcon(
-                {
-                  id: point.id,
-                  kind: point.kind,
-                  title: point.title,
-                  price: point.price,
-                  avatarUrl: point.avatarUrl,
-                  verified: point.verified,
-                },
-                false,
-              )
-            }
-            eventHandlers={{
-              click: () => {
-                setSelectedId(point.id)
-                onSelect?.(point)
-              },
-            }}
-          >
-            <Popup className="proxid-editorial-popup">
-              <div className="min-w-[190px] p-1 text-ink font-sans">
-                <div className="flex items-center justify-between gap-2 border-b border-line pb-1.5">
-                  <span className="font-mono text-[9px] uppercase tracking-wider text-muted">
-                    {point.kind === 'provider' ? 'Provider Node' : 'Job Listing'}
-                  </span>
-                  {point.verified && (
-                    <span className="flex items-center gap-1 font-mono text-[9px] text-ink font-bold">
-                      <img
-                        src="/brands/concordium.svg"
-                        className="h-3 w-3 inline-block"
-                        alt="Concordium"
-                      />
-                      CONCORDIUM ATTESTED
-                    </span>
-                  )}
-                </div>
-
-                <p className="mt-2 text-sm font-semibold text-ink leading-tight">{point.title}</p>
-                {point.subtitle ? (
-                  <p className="mt-0.5 text-xs text-muted leading-tight">{point.subtitle}</p>
-                ) : null}
-
-                <div className="mt-2 flex items-center justify-between text-xs text-muted font-mono">
-                  <span>
-                    {point.distanceKm !== null && point.distanceKm !== undefined
-                      ? formatDistance(point.distanceKm)
-                      : 'Local'}
-                  </span>
-                  {point.price !== null && point.price !== undefined ? (
-                    <span className="font-bold text-ink">{money(point.price)}</span>
-                  ) : null}
-                </div>
-
-                <div className="mt-2.5 pt-1.5 border-t border-line">
-                  {point.href ? (
-                    <a
-                      href={point.href}
-                      className="inline-block w-full text-center rounded-lg border border-structural bg-surface py-1 text-xs font-semibold text-ink hover:bg-sunken transition-colors"
-                    >
-                      {point.kind === 'provider' ? 'View Profile' : 'Inspect Job'}
-                    </a>
-                  ) : (
-                    <div className="text-[10px] text-muted font-mono text-center">
-                      Verified On Concordium
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Popup>
-          </Marker>
-        ))}
+        <MapMarkersAndClusters
+          destackedPoints={destackedPoints}
+          selectedId={selectedId}
+          onSelect={(pt) => {
+            setSelectedId(pt.id)
+            onSelect?.(pt)
+          }}
+        />
       </MapContainer>
     </div>
+  )
+}
   )
 }

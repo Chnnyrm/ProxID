@@ -25,7 +25,7 @@ async def search_nearby(
     radius_km: float = Query(default=5, ge=0, le=100),
     category_id: uuid.UUID | None = Query(default=None),
     verified_only: bool = Query(default=False),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     container: Container = Depends(get_container),
@@ -46,7 +46,7 @@ async def search_nearby(
 @router.get("/search/text", response_model=list[ServiceOut])
 async def search_text(
     q: str = Query(min_length=1, max_length=120),
-    limit: int = Query(default=20, ge=1, le=50),
+    limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     container: Container = Depends(get_container),

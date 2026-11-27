@@ -27,6 +27,16 @@ export function useNearbyProviders(verifiedOnly = false) {
   })
 }
 
+/** All providers across the platform for map transparency without radius filtering. */
+export function useMapAllProviders() {
+  const coordinates = useLocationStore((state) => state.coordinates)
+  return useQuery({
+    queryKey: ['providers', 'map-all', coordinates.latitude, coordinates.longitude],
+    queryFn: () => providerService.nearby(coordinates, 0, false, 100),
+    placeholderData: keepPreviousData,
+  })
+}
+
 /** Providers matching a word. */
 export function useProviderSearch(query: string) {
   return useQuery({

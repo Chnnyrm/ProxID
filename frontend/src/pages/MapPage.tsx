@@ -17,8 +17,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
 import { NeighborhoodMap, type MapPoint } from '@/components/map/NeighborhoodMap'
-import { useNearbyJobs } from '@/hooks/useJobs'
-import { useNearbyProviders } from '@/hooks/useProviders'
+import { useMapAllJobs } from '@/hooks/useJobs'
+import { useMapAllProviders } from '@/hooks/useProviders'
 import { useLocationStore } from '@/store/locationStore'
 
 type FilterOption = 'all' | 'services' | 'jobs'
@@ -43,8 +43,8 @@ export function MapPage() {
     setDragRadius(radiusKm)
   }, [radiusKm])
 
-  const providersQuery = useNearbyProviders(false)
-  const jobsQuery = useNearbyJobs()
+  const providersQuery = useMapAllProviders()
+  const jobsQuery = useMapAllJobs()
 
   const handleFilterChange = (filter: FilterOption) => {
     setSearchParams(filter === 'all' ? {} : { filter })
@@ -67,6 +67,20 @@ export function MapPage() {
     }
   }
 
+  // Haversine distance helper for calculating true distance if distanceKm is null
+  const calcDistance = (lat: number, lon: number, centerLat: number, centerLon: number) => {
+    const R = 6371
+    const dLat = ((lat - centerLat) * Math.PI) / 180
+    const dLon = ((lon - centerLon) * Math.PI) / 180
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((centerLat * Math.PI) / 180) *
+        Math.cos((lat * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2)
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  }
+
   // Compile map points
   const points = useMemo<MapPoint[]>(() => {
     const list: MapPoint[] = []
@@ -82,6 +96,11 @@ export function MapPage() {
           typeof p.longitude === 'number' && !isNaN(p.longitude)
             ? p.longitude
             : coordinates.longitude
+        const distKm =
+          p.distance_km !== null && p.distance_km !== undefined
+            ? p.distance_km
+            : calcDistance(lat, lon, coordinates.latitude, coordinates.longitude)
+        const isInside = distKm <= dragRadius
         list.push({
           id: `provider-${p.id}`,
           kind: 'provider',
@@ -90,10 +109,11 @@ export function MapPage() {
           title: p.display_name,
           subtitle: p.services[0]?.title ?? 'Attested Tradesperson',
           price: p.services[0]?.price ?? null,
-          distanceKm: p.distance_km,
+          distanceKm: distKm,
           verified: p.concordium_verified,
           avatarUrl: p.avatar_url,
-          href: `/providers`,
+          href: `/u/${p.username ?? p.id}`,
+          isInsideRadius: isInside,
         })
       }
     }
@@ -109,6 +129,11 @@ export function MapPage() {
           typeof j.longitude === 'number' && !isNaN(j.longitude)
             ? j.longitude
             : coordinates.longitude
+        const distKm =
+          j.distance_km !== null && j.distance_km !== undefined
+            ? j.distance_km
+            : calcDistance(lat, lon, coordinates.latitude, coordinates.longitude)
+        const isInside = distKm <= dragRadius
         list.push({
           id: `job-${j.id}`,
           kind: 'job',
@@ -117,10 +142,11 @@ export function MapPage() {
           title: j.title,
           subtitle: j.category_name ?? 'Community Task',
           price: j.price,
-          distanceKm: j.distance_km,
+          distanceKm: distKm,
           verified: false,
           avatarUrl: null,
           href: `/jobs/${j.id}`,
+          isInsideRadius: isInside,
         })
       }
     }
@@ -132,6 +158,7 @@ export function MapPage() {
     jobsQuery.data,
     coordinates.latitude,
     coordinates.longitude,
+    dragRadius,
   ])
 
   const thumbPercent = Math.min(Math.max(((dragRadius - 0.5) / (20 - 0.5)) * 100, 0), 100)
@@ -150,17 +177,17 @@ export function MapPage() {
           <p className="mt-1 text-xs text-muted">Discovery within range</p>
         </div>
 
-        {/* Legend: 3 words maximum ("Services / Jobs") */}
-        <div className="flex items-center gap-3 text-xs font-mono font-bold text-ink">
-          <span className="flex items-center gap-1.5">
+        {/* Legend: 3 words each for the two tiers */}
+        <div className="flex flex-wrap items-center gap-3 text-xs font-mono">
+          <div className="flex items-center gap-1.5 font-bold text-ink">
             <span className="h-3 w-3 rounded-full bg-ink inline-block" />
-            <span>Services</span>
-          </span>
+            <span>Within your range</span>
+          </div>
           <span className="text-muted">/</span>
-          <span className="flex items-center gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-accent inline-block" />
-            <span>Jobs</span>
-          </span>
+          <div className="flex items-center gap-1.5 text-muted">
+            <span className="h-3 w-3 rounded-full bg-ink/40 border border-ink/30 inline-block" />
+            <span>Beyond your range</span>
+          </div>
         </div>
       </div>
 
@@ -261,6 +288,11 @@ export function MapPage() {
       </div>
 
       {/* Main Map Canvas */}
+      {points.length > 0 && points.every((p) => !p.isInsideRadius) ? (
+        <div className="rounded-xl border border-line bg-surface p-3 text-xs font-mono text-ink shadow-xs">
+          No listings within {formattedRadius}. Zoom out to explore all {points.length} platform listings.
+        </div>
+      ) : null}
       <div
         data-tour="tour-map"
         className="overflow-hidden rounded-2xl border border-line shadow-xs"
@@ -277,7 +309,7 @@ export function MapPage() {
       {/* Mini Stats Bar */}
       <div className="flex items-center justify-between text-xs font-mono text-muted px-1">
         <span>
-          {points.length} {activeFilter === 'jobs' ? 'JOBS' : activeFilter === 'services' ? 'SERVICES' : 'NODES'} IN {formattedRadius.toUpperCase()}
+          {points.filter((p) => p.isInsideRadius).length} OF {points.length} {activeFilter === 'jobs' ? 'JOBS' : activeFilter === 'services' ? 'SERVICES' : 'NODES'} WITHIN {formattedRadius.toUpperCase()}
         </span>
         <span>
           LAT {coordinates?.latitude != null ? coordinates.latitude.toFixed(4) : '6.5244'} // LON {coordinates?.longitude != null ? coordinates.longitude.toFixed(4) : '3.3792'}
