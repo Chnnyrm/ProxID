@@ -401,7 +401,7 @@ export function ProfilePage() {
               <li><strong className="text-ink">What it asks for:</strong> Zero-knowledge proof of unique human personhood from your Concordium ID wallet.</li>
               <li><strong className="text-ink">Why:</strong> Proves you are a real human provider to clients without revealing personal identity or documents.</li>
               <li><strong className="text-ink">What happens next:</strong> An on-chain verification badge is attached to your account and shown on your cards and public profile.</li>
-              <li><strong className="text-ink">What it cannot do today:</strong> Veriox has not published a public API on testnet, so identity issuance is currently demonstrated via a secure challenge simulation.</li>
+              <li><strong className="text-ink">What it cannot do today:</strong> Veriox operates as an edge Cloudflare Worker integration rather than a merchant backend QR API, so identity issuance is demonstrated here via a domain-bound cryptographic challenge simulation.</li>
             </ul>
           </div>
 
@@ -462,7 +462,7 @@ export function ProfilePage() {
                 <span className="font-mono text-ink font-semibold">{request.data.bound_domain}</span>
               </div>
               <p className="text-xs text-muted leading-relaxed">
-                Veriox publishes no public API, so no QR code can be produced; the verification challenge is simulated for demonstration.
+                Veriox integrates via an edge Cloudflare Worker and client SDK (window.Veriox) rather than a backend QR generation endpoint; the verification challenge is simulated here for demonstration.
               </p>
             </div>
           ) : null}
