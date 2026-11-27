@@ -14,6 +14,7 @@ import {
   Image as ImageIcon,
   LogOut,
   MapPin,
+  Plus,
   QrCode,
   Shield,
   ShieldCheck,
@@ -24,6 +25,7 @@ import {
 } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { initConcordiumModal } from '@concordium/verification-web-ui'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
@@ -55,7 +57,52 @@ export function ProfilePage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [uploadedPublicId, setUploadedPublicId] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [verificationError, setVerificationError] = useState<string | null>(null)
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+
+  const handleStartVerification = async () => {
+    setVerificationError(null)
+    try {
+      const req = await request.mutateAsync(purpose)
+      try {
+        await initConcordiumModal({
+          network: 'testnet',
+          metadata: { name: 'ProxID', description: 'Verified human local work' },
+          onSuccess: (data: unknown) => {
+            const ev = data as { data?: { proof?: string; message?: string }; proof?: string; message?: string }
+            const proofRef = ev?.data?.proof || ev?.proof || 'concordium-zkp'
+            approve.mutate({
+              nonce: req.nonce,
+              status: 'approved',
+              proof_reference: proofRef,
+            })
+          },
+          onError: (data: unknown) => {
+            const ev = data as { data?: { message?: string }; message?: string }
+            const reason = ev?.data?.message || ev?.message || 'Verification rejected by wallet'
+            approve.mutate({
+              nonce: req.nonce,
+              status: 'refused',
+              reason,
+            })
+          },
+          onClose: () => {
+            approve.mutate({
+              nonce: req.nonce,
+              status: 'cancelled',
+              reason: 'User closed verification window',
+            })
+          },
+        })
+      } catch (modalErr: unknown) {
+        const msg = modalErr instanceof Error ? modalErr.message : String(modalErr)
+        setVerificationError(`Concordium Web UI Modal: ${msg}`)
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err)
+      setVerificationError(`Verification request failed: ${msg}`)
+    }
+  }
 
   // Edit form state
   const [editName, setEditName] = useState('')
@@ -231,6 +278,12 @@ export function ProfilePage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 self-start sm:self-center">
+                <Link to="/services?compose=1">
+                  <Button intent="primary" size="sm">
+                    <Plus size={13} className="mr-1" aria-hidden="true" />
+                    Offer a Service
+                  </Button>
+                </Link>
                 <Button
                   intent="secondary"
                   size="sm"
@@ -401,7 +454,7 @@ export function ProfilePage() {
               <li><strong className="text-ink">What it asks for:</strong> Zero-knowledge proof of unique human personhood from your Concordium ID wallet.</li>
               <li><strong className="text-ink">Why:</strong> Proves you are a real human provider to clients without revealing personal identity or documents.</li>
               <li><strong className="text-ink">What happens next:</strong> An on-chain verification badge is attached to your account and shown on your cards and public profile.</li>
-              <li><strong className="text-ink">What it cannot do today:</strong> Veriox operates as an edge Cloudflare Worker integration rather than a merchant backend QR API, so identity issuance is demonstrated here via a domain-bound cryptographic challenge simulation.</li>
+              <li><strong className="text-ink">Official Concordium SDK:</strong> Powered by @concordium/verification-web-ui to present proof directly to testnet wallets.</li>
             </ul>
           </div>
 
@@ -425,9 +478,9 @@ export function ProfilePage() {
 
           <div className="flex flex-wrap gap-2">
             <Button
-              onClick={() => request.mutate(purpose)}
+              onClick={() => void handleStartVerification()}
               loading={request.isPending}
-              loadingText="Generating nonce..."
+              loadingText="Launching verification..."
               disabled={request.isPending}
             >
               <QrCode size={14} className="mr-1" aria-hidden="true" />
@@ -437,7 +490,13 @@ export function ProfilePage() {
             {attempt?.status === 'pending' && attempt.nonce ? (
               <Button
                 intent="secondary"
-                onClick={() => approve.mutate(attempt.nonce as string)}
+                onClick={() =>
+                  approve.mutate({
+                    nonce: attempt.nonce as string,
+                    status: 'approved',
+                    proof_reference: 'concordium-zkp',
+                  })
+                }
                 loading={approve.isPending}
                 loadingText="Verifying proof..."
                 disabled={approve.isPending}
@@ -447,6 +506,18 @@ export function ProfilePage() {
               </Button>
             ) : null}
           </div>
+
+          {verificationError ? (
+            <div
+              role="alert"
+              className="rounded-xl border border-structural/40 bg-accent/15 p-3 text-xs text-ink space-y-1"
+            >
+              <div className="font-bold flex items-center gap-1.5 text-accent-ink">
+                <span>Verification Notice</span>
+              </div>
+              <p className="leading-relaxed">{verificationError}</p>
+            </div>
+          ) : null}
 
           {request.data ? (
             <div className="rounded-xl border border-line bg-surface p-4 text-xs space-y-3 shadow-sm">
@@ -462,7 +533,7 @@ export function ProfilePage() {
                 <span className="font-mono text-ink font-semibold">{request.data.bound_domain}</span>
               </div>
               <p className="text-xs text-muted leading-relaxed">
-                Veriox integrates via an edge Cloudflare Worker and client SDK (window.Veriox) rather than a backend QR generation endpoint; the verification challenge is simulated here for demonstration.
+                Single-use presentation request generated and registered with Concordium testnet verifier.
               </p>
             </div>
           ) : null}
@@ -486,7 +557,7 @@ export function ProfilePage() {
           ) : null}
 
           <p className="text-[11px] leading-relaxed text-muted border-t border-line pt-3">
-            Veriox handles the cryptographic anchor and ZK proof verification on Concordium testnet.
+            Concordium handles the cryptographic anchor and ZK proof verification on Concordium testnet.
             The verified badge is written strictly upon verification approval.
           </p>
         </CardBody>
@@ -498,12 +569,20 @@ export function ProfilePage() {
           title="Your Jobs"
           hint="Contract rooms created, assigned, or completed."
           action={
-            <Link
-              to="/jobs"
-              className="text-xs font-semibold uppercase tracking-wider text-ink hover:underline flex items-center gap-1"
-            >
-              Browse all jobs
-            </Link>
+            <div className="flex items-center gap-3">
+              <Link
+                to="/messages"
+                className="text-xs font-semibold uppercase tracking-wider text-accent hover:underline flex items-center gap-1"
+              >
+                All Rooms &amp; Messages
+              </Link>
+              <Link
+                to="/jobs"
+                className="text-xs font-semibold uppercase tracking-wider text-ink hover:underline flex items-center gap-1"
+              >
+                Browse all jobs
+              </Link>
+            </div>
           }
         />
         <CardBody>

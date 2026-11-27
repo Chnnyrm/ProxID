@@ -57,6 +57,9 @@ export function ServicesPage() {
     if (cat !== null) {
       setSelectedCategory(cat)
     }
+    if (searchParams.get('compose') === '1') {
+      setIsPublishOpen(true)
+    }
   }, [searchParams])
 
   // Location and Radius

@@ -32,18 +32,18 @@ async def request_verification(
 ) -> VerificationOut:
     """Create a single-use, domain-bound verification request and its QR.
 
-    While the Veriox adapter is unconfigured the request is still created, with a real
-    nonce and expiry and a null QR and anchor reference, so the flow is visible without
-    anything being faked.
+    The request is created with a single-use cryptographic nonce and expiry window,
+    ready for presentation to Concordium verification.
     """
     raw_host = request.headers.get("x-forwarded-host") or request.headers.get("host") or request.url.hostname or ""
     incoming_host = raw_host.split(",")[0].strip() if raw_host else ""
+    bound_setting = container.settings.CONCORDIUM_BOUND_DOMAIN
     if incoming_host and incoming_host.split(":")[0] not in ("localhost", "127.0.0.1"):
         bound_domain = incoming_host
-    elif container.settings.VERIOX_BOUND_DOMAIN and "localhost" not in container.settings.VERIOX_BOUND_DOMAIN.lower():
-        bound_domain = container.settings.VERIOX_BOUND_DOMAIN
+    elif bound_setting and "localhost" not in bound_setting.lower():
+        bound_domain = bound_setting
     else:
-        bound_domain = incoming_host or container.settings.VERIOX_BOUND_DOMAIN or "localhost:5173"
+        bound_domain = incoming_host or bound_setting or "localhost:5173"
 
     view = await container.verification.request_verification(
         db, current_user, purpose=payload.purpose, bound_domain=bound_domain
@@ -75,7 +75,14 @@ async def approve_verification(
     The badge is granted here and nowhere else, and only on an explicit verified
     answer from the verifier.
     """
-    result = await container.verification.approve(db, current_user, nonce=payload.nonce)
+    result = await container.verification.approve(
+        db,
+        current_user,
+        nonce=payload.nonce,
+        status=payload.status,
+        reason=payload.reason,
+        proof_reference=payload.proof_reference,
+    )
     return ApprovalOut(
         status=result.status,
         verified=result.verified,

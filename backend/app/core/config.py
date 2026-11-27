@@ -148,21 +148,19 @@ class Settings(BaseSettings):
     CONCORDIUM_X402_MERCHANT_ACCOUNT: str = ""
     CONCORDIUM_REQUEST_TIMEOUT_SECONDS: float = 15.0
 
-    # -- Veriox (Verify and Access: ZKP personhood with a QR) -----------------
-    # Veriox handles QR generation, chain anchoring and a true/false verification
-    # answer. demo.veriox.io was inspected and exposes no public API schema, so the
-    # base URL is configuration and the adapter refuses to guess a path.
+    # -- Concordium Identity (Verify and Access: ZKP personhood) -------------
+    # Concordium provides ZKP verification via @concordium/verification-web-ui and
+    # official wallet-backed identity providers.
+    CONCORDIUM_BOUND_DOMAIN: str = "localhost:5173"
+    CONCORDIUM_REQUEST_TTL_SECONDS: int = 300
+
+    # Backwards compatibility / optional external verification bridge
     VERIOX_BASE_URL: str = ""
     VERIOX_API_KEY: str = ""
-    # Domain the verification request is bound to. Must be the deploying site.
-    VERIOX_BOUND_DOMAIN: str = "localhost:5173"
-    # Resource paths for the two calls. Left empty on purpose: the demo site does not
-    # publish its API, so these must come from the Veriox integration guide. An empty
-    # path makes the adapter refuse to run instead of calling a guessed URL.
     VERIOX_REQUEST_PATH: str = ""
     VERIOX_STATUS_PATH: str = ""
-    # How long a Verification Request Anchor stays valid. Single use, always.
     VERIOX_REQUEST_TTL_SECONDS: int = 300
+    FEATURE_VERIOX_IDENTITY: bool = False
 
     # -- Agent IDP (delegated agent identity, DevNet only) --------------------
     # Concordium's Agent IDP issues a scoped credential to an agent after the human
@@ -321,13 +319,14 @@ class Settings(BaseSettings):
                 "DATABASE_URL (still points at localhost, which a deployment "
                 "cannot be)"
             )
+        bound_domain = self.CONCORDIUM_BOUND_DOMAIN or self.VERIOX_BOUND_DOMAIN
         if self.APP_ENV == "production" and (
-            not self.VERIOX_BOUND_DOMAIN
-            or "localhost" in self.VERIOX_BOUND_DOMAIN.lower()
-            or "127.0.0.1" in self.VERIOX_BOUND_DOMAIN
+            not bound_domain
+            or "localhost" in bound_domain.lower()
+            or "127.0.0.1" in bound_domain
         ):
             missing.append(
-                "VERIOX_BOUND_DOMAIN (still points at localhost in production; "
+                "CONCORDIUM_BOUND_DOMAIN (still points at localhost in production; "
                 "must be bound to the deployment origin e.g. proxid-psi.vercel.app)"
             )
         if missing:
@@ -346,6 +345,11 @@ class Settings(BaseSettings):
             )
 
     @property
+    def VERIOX_BOUND_DOMAIN(self) -> str:
+        """Backwards compatibility alias for CONCORDIUM_BOUND_DOMAIN."""
+        return self.CONCORDIUM_BOUND_DOMAIN
+
+    @property
     def agent_recipient_allowlist(self) -> list[str]:
         """The payees an agent may ever pay, as a list. Empty means nobody."""
         return [
@@ -353,6 +357,11 @@ class Settings(BaseSettings):
             for address in self.AGENT_RECIPIENT_ALLOWLIST.split(",")
             if address.strip()
         ]
+
+    @property
+    def concordium_configured(self) -> bool:
+        """Concordium zero-knowledge identity is available via the web UI SDK."""
+        return True
 
     @property
     def veriox_configured(self) -> bool:

@@ -11,7 +11,8 @@ import { Header } from '@/components/Header'
 import { ImageLightboxModal } from '@/components/ImageLightboxModal'
 import { LocationPromptModal } from '@/components/LocationPromptModal'
 import { Navigation } from '@/components/Navigation'
-import OnboardingOverlay from '@/components/OnboardingOverlay'
+import { OnboardingOverlay } from '@/components/OnboardingOverlay'
+import { StoryTourModal } from '@/components/StoryTourModal'
 import { PwaInstallPrompt } from '@/components/PwaInstallPrompt'
 import { RequireAuthModal } from '@/components/RequireAuthModal'
 import VoiceAssistant from '@/components/VoiceAssistant'
@@ -23,6 +24,7 @@ import { JobsPage } from '@/pages/JobsPage'
 import { LandingPage } from '@/pages/LandingPage'
 import { LoginPage } from '@/pages/LoginPage'
 import { MapPage } from '@/pages/MapPage'
+import { MessagesPage } from '@/pages/MessagesPage'
 import { ProfilePage } from '@/pages/ProfilePage'
 import { PublicProfilePage } from '@/pages/PublicProfilePage'
 import { ServiceDetailPage } from '@/pages/ServiceDetailPage'
@@ -36,9 +38,10 @@ export function App() {
   const status = useAuthStore((state) => state.status)
   const location = useLocation()
   const isLanding = location.pathname === '/'
+  const isAgent = location.pathname.startsWith('/agent')
 
   const isSignedIn = status === 'signed-in'
-  const ALLOWED_VOICE_PATHS = ['/agent', '/services', '/jobs', '/map', '/profile']
+  const ALLOWED_VOICE_PATHS = ['/services', '/jobs', '/map', '/profile']
   const isAllowedVoicePath =
     ALLOWED_VOICE_PATHS.some(
       (p) => location.pathname === p || location.pathname.startsWith(`${p}/`)
@@ -63,6 +66,7 @@ export function App() {
       <Navigation />
       <Header />
       <OnboardingOverlay />
+      <StoryTourModal />
       {isSignedIn && isAllowedVoicePath && <VoiceAssistant />}
       <ImageLightboxModal />
       <RequireAuthModal />
@@ -83,12 +87,13 @@ export function App() {
             <Route path="/u/:username" element={<PublicProfilePage />} />
             <Route path="/providers" element={<Navigate to="/services" replace />} />
             <Route path="/agent" element={<AgentPage />} />
+            <Route path="/messages" element={<MessagesPage />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </ErrorBoundary>
       </main>
-      {!isLanding && (
+      {!isLanding && !isAgent && (
         <footer className="border-t border-line px-4 py-6 lg:pl-28 mb-16 lg:mb-0">
           <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 text-xs text-muted">
             <span className="font-mono text-[10px] uppercase tracking-wider text-muted">

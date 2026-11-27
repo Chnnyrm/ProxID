@@ -7,6 +7,7 @@
  */
 
 import {
+  AlertTriangle,
   ArrowLeft,
   Bot,
   CheckCircle2,
@@ -360,6 +361,28 @@ export function JobRoomPage() {
                 </Button>
               ) : null}
 
+              {job.status === 'in_progress' && (isClient || isProvider) ? (
+                <Button
+                  intent="secondary"
+                  loading={pendingAction === 'dispute' && changeStatus.isPending}
+                  loadingLabel="Opening dispute..."
+                  disabled={changeStatus.isPending}
+                  onClick={() => {
+                    if (
+                      window.confirm(
+                        'Are you sure you want to open a dispute? This halts escrow until mediated.',
+                      )
+                    ) {
+                      handleStatusChange('disputed', 'dispute')
+                    }
+                  }}
+                  className="w-full border-amber-500/50 text-amber-800 hover:bg-amber-500/10"
+                >
+                  <AlertTriangle size={15} className="mr-1 text-amber-600" aria-hidden="true" />
+                  Open dispute
+                </Button>
+              ) : null}
+
               {['open', 'requested', 'assigned', 'in_progress'].includes(job.status) && (isClient || isProvider) ? (
                 <Button
                   intent="danger"
@@ -373,7 +396,20 @@ export function JobRoomPage() {
                 </Button>
               ) : null}
 
-              {isTerminal && (
+              {job.status === 'disputed' && (
+                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-ink space-y-1.5">
+                  <div className="flex items-center gap-1.5 font-bold text-amber-800">
+                    <AlertTriangle size={15} className="text-amber-600 shrink-0" />
+                    <span>Contract is in Dispute</span>
+                  </div>
+                  <p className="text-muted leading-relaxed">
+                    Escrow release is held. All room messages, timestamps, and identity credentials
+                    are anchored under Concordium Article 12 audit trails for mediator verification.
+                  </p>
+                </div>
+              )}
+
+              {isTerminal && job.status !== 'disputed' && (
                 <p className="text-xs text-muted">
                   This job has concluded with status &quot;{job.status}&quot;. No further actions may be taken.
                 </p>

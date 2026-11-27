@@ -11,7 +11,19 @@ export const verificationService = {
     api.post<Verification>('/verification/request', { purpose }),
 
   /** Check whether the person approved in the ID app. */
-  approve: (nonce: string) => api.post<Approval>('/verification/approve', { nonce }),
+  approve: (
+    payload:
+      | string
+      | {
+          nonce: string
+          status?: 'approved' | 'refused' | 'cancelled'
+          reason?: string
+          proof_reference?: string
+        },
+  ) => {
+    const body = typeof payload === 'string' ? { nonce: payload, status: 'approved' } : payload
+    return api.post<Approval>('/verification/approve', body)
+  },
 
   /** The latest attempt on this account, or nothing. */
   mine: () => api.get<Verification | null>('/verification/me'),

@@ -34,9 +34,19 @@ export function useRequestVerification() {
 export function useApproveVerification() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (nonce: string) => verificationService.approve(nonce),
+    mutationFn: (
+      payload:
+        | string
+        | {
+            nonce: string
+            status?: 'approved' | 'refused' | 'cancelled'
+            reason?: string
+            proof_reference?: string
+          },
+    ) => verificationService.approve(payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: verificationKeys.mine })
+      void queryClient.invalidateQueries({ queryKey: ['users', 'me'] })
       void queryClient.invalidateQueries({ queryKey: ['jobs'] })
     },
   })

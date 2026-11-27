@@ -420,9 +420,9 @@ export function AgentPage() {
   }, [])
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] max-w-4xl mx-auto px-3 sm:px-4">
+    <div className="flex flex-col h-[calc(100vh-64px)] max-w-4xl mx-auto w-full relative">
       {/* 1. Header: proxidAI avatar, verified state, registry identity */}
-      <header className="py-3 border-b border-line shrink-0 flex items-center justify-between gap-3">
+      <header className="py-2.5 px-3 sm:px-4 border-b border-line shrink-0 flex items-center justify-between gap-3 bg-surface/90 backdrop-blur-xs">
         <div className="flex items-center gap-3">
           <div className="relative">
             <img
@@ -446,7 +446,7 @@ export function AgentPage() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-base font-bold text-ink">proxidAI</h1>
-              <span className="inline-flex items-center gap-1 rounded-full border border-structural bg-surface px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-ink shadow-xs">
+              <span className="inline-flex items-center gap-1 rounded-full border border-structural bg-page px-2 py-0.5 text-[10px] font-mono font-bold uppercase tracking-wider text-ink shadow-xs">
                 Verified Human Registry
               </span>
             </div>
@@ -458,19 +458,30 @@ export function AgentPage() {
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowCardDetails(!showCardDetails)}
-          className="inline-flex items-center gap-1 rounded-lg border border-line bg-surface px-2.5 py-1 text-xs font-mono text-muted hover:text-ink hover:border-structural transition-colors shadow-xs"
-        >
-          <span>Card Details</span>
-          {showCardDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
+        {/* Header Right: Spend Guard Tag & Card Details Toggle */}
+        <div className="flex items-center gap-2">
+          <div
+            data-tour="tour-consent"
+            className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-line bg-page text-[10px] font-mono text-ink font-semibold shadow-xs"
+            title="Human consent required before spending"
+          >
+            <ShieldAlert size={12} className="text-accent" />
+            <span>Cap: NGN 10k</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCardDetails(!showCardDetails)}
+            className="inline-flex items-center gap-1 rounded-lg border border-line bg-page px-2.5 py-1 text-xs font-mono text-muted hover:text-ink hover:border-structural transition-colors shadow-xs"
+          >
+            <span>Card Details</span>
+            {showCardDetails ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        </div>
       </header>
 
       {/* Expandable Agent Card Details */}
       {showCardDetails && (
-        <div className="my-2 p-3 bg-surface border border-line rounded-xl shadow-xs space-y-2 text-xs">
+        <div className="mx-3 my-2 p-3 bg-surface border border-line rounded-xl shadow-xs space-y-2 text-xs">
           <div className="flex items-center justify-between border-b border-line pb-2">
             <span className="font-mono font-bold text-ink">Agent On-Chain Registration</span>
             <span className="font-mono text-[10px] text-muted">
@@ -494,74 +505,8 @@ export function AgentPage() {
         </div>
       )}
 
-      {/* In-Context Push Notification Prompt (First visit / relevant context) */}
-      {showPushPrompt && (
-        <div className="my-2 rounded-2xl border border-structural bg-surface p-3.5 shadow-xs transition-all">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-2.5 min-w-0">
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-sunken text-ink">
-                <Bell size={16} />
-              </div>
-              <div>
-                <p className="text-xs font-bold text-ink">
-                  proxidAI can tell you when work matches you. Turn on notifications?
-                </p>
-                <p className="text-[11px] text-muted mt-0.5">
-                  Get alerts for nearby matches even when the app is closed. No spam.
-                </p>
-              </div>
-            </div>
-            {pushPromptSuccess ? (
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-ink bg-sunken px-3 py-1.5 rounded-lg border border-line">
-                <CheckCircle2 size={14} className="text-accent" />
-                <span>Notifications turned on!</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2 shrink-0">
-                <Button
-                  size="sm"
-                  intent="primary"
-                  loading={pushPromptBusy}
-                  loadingText="Enabling..."
-                  disabled={pushPromptBusy}
-                  onClick={() => void handleEnableNotifications()}
-                >
-                  Enable
-                </Button>
-                <Button
-                  size="sm"
-                  intent="ghost"
-                  disabled={pushPromptBusy}
-                  onClick={handleDismissPushPrompt}
-                >
-                  Not later
-                </Button>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 2. Consent Card (data-tour="tour-consent") */}
-      <div
-        data-tour="tour-consent"
-        className="shrink-0 my-2 rounded-xl border border-structural bg-surface p-3 shadow-xs flex items-center justify-between gap-3"
-      >
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-ink text-surface shrink-0">
-            <ShieldAlert size={15} />
-          </div>
-          <p className="text-xs text-ink">
-            <span className="font-bold">Human consent required:</span> proxidAI asks before spending or releasing funds. Every payment generates an auditable x402 receipt for your wallet approval.
-          </p>
-        </div>
-        <span className="shrink-0 font-mono text-[10px] font-bold uppercase tracking-wider text-muted hidden md:inline">
-          SPEND GUARD ACTIVE
-        </span>
-      </div>
-
-      {/* 3. Conversation Message Thread */}
-      <div className="flex-1 overflow-y-auto py-3 space-y-4 pr-1">
+      {/* 2. Conversation Message Thread */}
+      <div className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 space-y-4 pb-28 lg:pb-24">
         {messages.length === 0 ? (
           /* Empty state with 3 suggested prompts */
           <div className="flex flex-col items-center justify-center min-h-[260px] text-center px-4 space-y-4">
@@ -825,58 +770,80 @@ export function AgentPage() {
         <div ref={chatBottomRef} />
       </div>
 
-      {/* 4. Persistent Bottom Input */}
-      <div className="sticky bottom-16 lg:bottom-0 py-3 bg-page/95 backdrop-blur-xs border-t border-line shrink-0">
-        <form
-          onSubmit={(e) => {
-            e.preventDefault()
-            if (inputCommand.trim() && !runAgent.isPending) {
-              executeCommand(inputCommand)
-            }
-          }}
-          className="flex items-center gap-2"
-        >
-          {/* Mic Button on Left */}
-          <button
-            type="button"
-            data-tour="tour-mic"
-            onClick={toggleMic}
-            className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition-all shadow-xs ${
-              isListening
-                ? 'border-accent bg-accent text-surface animate-pulse'
-                : 'border-line bg-surface text-ink hover:border-structural hover:bg-sunken'
-            }`}
-            title={isListening ? 'Stop recording voice' : 'Start voice recognition'}
-            aria-label={isListening ? 'Stop recording voice' : 'Start voice recognition'}
+      {/* 3. Fixed Bottom Composer */}
+      <div className="fixed bottom-14 lg:bottom-0 left-0 right-0 lg:left-24 z-[600] bg-surface/95 backdrop-blur-md border-t border-line px-3 py-2.5 safe-area-pb shadow-md">
+        <div className="max-w-4xl mx-auto w-full">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (inputCommand.trim() && !runAgent.isPending) {
+                executeCommand(inputCommand)
+              }
+            }}
+            className="flex items-center gap-2"
           >
-            {isListening ? <MicOff size={18} /> : <Mic size={18} />}
-          </button>
+            {/* Large, obvious, labelled Microphone inside the composer (at least 44px) */}
+            <button
+              type="button"
+              data-tour="tour-mic"
+              onClick={toggleMic}
+              className={`h-12 min-w-[50px] sm:min-w-[92px] px-3 rounded-xl border flex items-center justify-center gap-2 transition-all shadow-xs ${
+                isListening
+                  ? 'border-accent bg-accent text-accent-ink ring-4 ring-accent/30 animate-pulse scale-102'
+                  : 'border-line bg-surface text-ink hover:border-structural hover:bg-sunken'
+              }`}
+              title={isListening ? 'Listening... Tap to stop' : 'Tap to speak'}
+              aria-label={isListening ? 'Stop recording voice' : 'Start voice recognition'}
+            >
+              {isListening ? (
+                <>
+                  <MicOff size={20} className="text-accent-ink animate-bounce shrink-0" />
+                  <span className="font-mono text-xs font-bold uppercase tracking-wider text-accent-ink">
+                    Listening
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Mic size={20} className="text-ink shrink-0" />
+                  <span className="hidden sm:inline font-mono text-xs font-bold uppercase tracking-wider text-muted">
+                    Voice
+                  </span>
+                </>
+              )}
+            </button>
 
-          {/* Text Input Center */}
-          <input
-            type="text"
-            value={inputCommand}
-            onChange={(e) => setInputCommand(e.target.value)}
-            placeholder={isListening ? 'Listening to voice...' : 'Ask proxidAI to find, hire or check anything...'}
-            disabled={runAgent.isPending || isListening}
-            className="flex-1 h-11 rounded-xl border border-line bg-surface px-3.5 text-xs sm:text-sm text-ink placeholder-muted focus:border-structural focus:outline-none shadow-xs disabled:opacity-50"
-          />
+            {/* Text Input Center */}
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={inputCommand}
+                onChange={(e) => setInputCommand(e.target.value)}
+                placeholder={isListening ? (speechInterim || 'Listening to your voice...') : 'Ask proxidAI to find, hire or check anything...'}
+                disabled={runAgent.isPending}
+                className={`w-full h-12 rounded-xl border px-3.5 text-xs sm:text-sm text-ink placeholder-muted focus:outline-none transition-all shadow-xs ${
+                  isListening
+                    ? 'border-accent bg-accent-wash/30 font-medium'
+                    : 'border-line bg-page focus:border-structural'
+                }`}
+              />
+            </div>
 
-          {/* Send Button on Right */}
-          <button
-            type="submit"
-            disabled={!inputCommand.trim() || runAgent.isPending || isListening}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-structural bg-ink text-surface hover:opacity-90 transition-all disabled:opacity-40 shadow-xs"
-            title="Send command"
-            aria-label="Send command"
-          >
-            {runAgent.isPending ? (
-              <Loader2 size={16} className="animate-spin text-surface" />
-            ) : (
-              <Send size={16} />
-            )}
-          </button>
-        </form>
+            {/* Send Button on Right */}
+            <button
+              type="submit"
+              disabled={!inputCommand.trim() || runAgent.isPending || isListening}
+              className="h-12 min-w-[50px] px-4 rounded-xl border border-structural bg-ink text-surface flex items-center justify-center font-bold hover:opacity-90 active:scale-95 transition-all disabled:opacity-40 shadow-xs"
+              title="Send command"
+              aria-label="Send command"
+            >
+              {runAgent.isPending ? (
+                <Loader2 size={18} className="animate-spin text-surface" />
+              ) : (
+                <Send size={18} />
+              )}
+            </button>
+          </form>
+        </div>
       </div>
     </div>
   )

@@ -11,15 +11,8 @@ The Verify & Access flow this module is shaped around, from the Concordium works
 
 Two implementations sit behind one interface:
 
-- ``VerioxIdentityAdapter`` talks to Veriox (demo.veriox.io), which handles QR
-  generation, chain anchoring and a true-or-false answer.
+- ``ConcordiumIdentityAdapter`` communicates with a configured Concordium verification service.
 - ``StubIdentityAdapter`` answers ``not_configured`` and calls nothing.
-
-Why the paths are configuration and not constants: demo.veriox.io was inspected on
-21 Nov 2026 and serves an age-gated storefront. It publishes no API schema, no
-endpoint list and no response shape. Writing guessed paths into code would be
-inventing an integration, so the adapter refuses to run until the real paths are
-supplied in configuration.
 
 What is real here: the domain binding, the single-use nonce, the expiry window, and
 the rule that a proof is never stored, only the verifier's reference to it.
@@ -137,8 +130,8 @@ class StubIdentityAdapter:
         )
 
 
-class VerioxIdentityAdapter:
-    """The Veriox-backed implementation of the same interface.
+class ConcordiumIdentityAdapter:
+    """The Concordium-backed implementation of the same interface.
 
     Sends the request to the configured paths with the configured API key. Refuses to
     operate when the base URL, the key or either path is missing, because a guessed
@@ -288,13 +281,16 @@ class VerioxIdentityAdapter:
         )
 
 
+VerioxIdentityAdapter = ConcordiumIdentityAdapter
+
+
 def build_identity_adapter(settings: Settings, guard: DependencyGuard) -> IdentityAdapter:
-    """Choose the adapter. Veriox when it is configured, the stub otherwise.
+    """Choose the adapter. Concordium when it is configured, the stub otherwise.
 
     Deciding here rather than inside a service means the rest of the application has
     one code path, and the choice is visible in the composition root.
     """
-    adapter = VerioxIdentityAdapter(settings, guard)
+    adapter = ConcordiumIdentityAdapter(settings, guard)
     if adapter.is_configured:
         return adapter
     return StubIdentityAdapter()

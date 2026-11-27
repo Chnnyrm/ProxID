@@ -46,7 +46,7 @@ class JobCreate(TrimmedText):
 class JobStatusUpdate(InputModel):
     """Ask for a state transition. The service decides whether it is legal."""
 
-    status: Literal["assigned", "in_progress", "completed", "cancelled"]
+    status: Literal["assigned", "in_progress", "completed", "cancelled", "disputed"]
     provider_id: uuid.UUID | None = None
 
 

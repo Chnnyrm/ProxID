@@ -612,7 +612,7 @@ async def seed(session: AsyncSession) -> SeedReport:
         {
             "user_id": demo_user_id,
             "purpose": "age_over_18",
-            "bound_domain": settings.VERIOX_BOUND_DOMAIN,
+            "bound_domain": settings.CONCORDIUM_BOUND_DOMAIN,
             "status": "demo_approved",
             "nonce": request_nonce,
             "expires_at": now + timedelta(minutes=5),

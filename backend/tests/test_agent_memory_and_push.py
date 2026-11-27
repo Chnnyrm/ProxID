@@ -145,3 +145,21 @@ def test_push_schemas() -> None:
     )
     assert notif_in.title == "Agent Match Found"
     assert len(notif_in.actions) == 1
+
+
+def test_parse_and_sanitize_buttons_marker() -> None:
+    """The plural form (Buttons: A | B | C) produces three actions and leaves no marker in prose."""
+    from app.services.agent_service import parse_and_sanitize_reply
+
+    raw_reply = (
+        "Here are some common services I can quickly find for you:\n"
+        "(Buttons: Plumber | Electrician | Cleaner)"
+    )
+    cleaned_reply, actions = parse_and_sanitize_reply(raw_reply)
+    assert "(Buttons:" not in cleaned_reply
+    assert "Buttons:" not in cleaned_reply
+    assert len(actions) == 3
+    assert [a["label"] for a in actions] == ["Plumber", "Electrician", "Cleaner"]
+    for a in actions:
+        assert a["kind"] == "prompt"
+
