@@ -33,10 +33,12 @@ import {
   useCreateListing,
   useNearbyListings,
 } from '@/hooks/useProviders'
+import { useAuth } from '@/hooks/useAuth'
 import { useLocationStore } from '@/store/locationStore'
 import type { ServiceListing } from '@/types/api'
 
 export function ServicesPage() {
+  const { isSignedIn } = useAuth()
   const [searchParams, setSearchParams] = useSearchParams()
   const initialCategory = searchParams.get('category') || 'all'
   const initialSearch = searchParams.get('q') || ''
@@ -58,9 +60,19 @@ export function ServicesPage() {
       setSelectedCategory(cat)
     }
     if (searchParams.get('compose') === '1') {
-      setIsPublishOpen(true)
+      if (!isSignedIn) {
+        window.dispatchEvent(
+          new CustomEvent('proxid-require-auth', {
+            detail: { action: 'offer a service' },
+          })
+        )
+      } else {
+        setIsPublishOpen(true)
+      }
+      searchParams.delete('compose')
+      setSearchParams(searchParams, { replace: true })
     }
-  }, [searchParams])
+  }, [searchParams, setSearchParams, isSignedIn])
 
   // Location and Radius
   const coordinates = useLocationStore((state) => state.coordinates)
@@ -156,7 +168,17 @@ export function ServicesPage() {
 
           <button
             type="button"
-            onClick={() => setIsPublishOpen(true)}
+            onClick={() => {
+              if (!isSignedIn) {
+                window.dispatchEvent(
+                  new CustomEvent('proxid-require-auth', {
+                    detail: { action: 'offer a service' },
+                  })
+                )
+                return
+              }
+              setIsPublishOpen(true)
+            }}
             className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-structural bg-ink px-4 text-xs font-bold text-page hover:opacity-90 transition-opacity active:translate-y-px shadow-xs"
           >
             <Plus size={14} />

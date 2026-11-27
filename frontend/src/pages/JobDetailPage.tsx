@@ -102,6 +102,14 @@ export function JobDetailPage() {
   const otherJobs = job.client_other_jobs || []
 
   const handleApply = async () => {
+    if (!isSignedIn) {
+      window.dispatchEvent(
+        new CustomEvent('proxid-require-auth', {
+          detail: { action: 'apply for this job' },
+        })
+      )
+      return
+    }
     if (!jobId) return
     setApplying(true)
     try {

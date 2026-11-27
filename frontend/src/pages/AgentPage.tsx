@@ -387,9 +387,17 @@ export function AgentPage() {
       handledListenRef.current = true
       searchParams.delete('listen')
       setSearchParams(searchParams, { replace: true })
-      startListening()
+      if (!isSignedIn) {
+        window.dispatchEvent(
+          new CustomEvent('proxid-require-auth', {
+            detail: { action: 'use voice commands with proxidAI' },
+          })
+        )
+      } else {
+        startListening()
+      }
     }
-  }, [initialListen, searchParams, setSearchParams, startListening])
+  }, [initialListen, searchParams, setSearchParams, startListening, isSignedIn])
 
   const toggleMic = () => {
     if (!isSignedIn) {

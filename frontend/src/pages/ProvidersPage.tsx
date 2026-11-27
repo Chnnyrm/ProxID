@@ -202,6 +202,14 @@ export function ProvidersPage() {
 
   // Handle Direct Hire Action
   const handleDirectHire = (provider: Provider) => {
+    if (!isSignedIn) {
+      window.dispatchEvent(
+        new CustomEvent('proxid-require-auth', {
+          detail: { action: 'hire this provider' },
+        })
+      )
+      return
+    }
     setHireTarget(provider)
     setHireMessage('')
     setHireSuccess(false)

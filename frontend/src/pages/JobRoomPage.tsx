@@ -71,7 +71,7 @@ function getStepIndex(status: string): number {
 
 export function JobRoomPage() {
   const { jobId } = useParams<{ jobId: string }>()
-  const { user } = useAuth()
+  const { user, isSignedIn } = useAuth()
   const room = useJobRoom(jobId)
   const sendMessage = useSendMessage(jobId ?? '')
   const changeStatus = useChangeJobStatus(jobId ?? '')
@@ -269,6 +269,14 @@ export function JobRoomPage() {
                 className="space-y-2 border-t border-line pt-3"
                 onSubmit={(event) => {
                   event.preventDefault()
+                  if (!isSignedIn) {
+                    window.dispatchEvent(
+                      new CustomEvent('proxid-require-auth', {
+                        detail: { action: 'send a message in this room' },
+                      })
+                    )
+                    return
+                  }
                   if (!draft.trim()) return
                   sendMessage.mutate(draft.trim(), { onSuccess: () => setDraft('') })
                 }}

@@ -42,11 +42,19 @@ export function JobsPage() {
   // Auto-open compose form if navigating with ?compose=1 (PWA shortcut)
   useEffect(() => {
     if (searchParams.get('compose') === '1') {
-      setShowForm(true)
+      if (!isSignedIn) {
+        window.dispatchEvent(
+          new CustomEvent('proxid-require-auth', {
+            detail: { action: 'post a job' },
+          })
+        )
+      } else {
+        setShowForm(true)
+      }
       searchParams.delete('compose')
       setSearchParams(searchParams, { replace: true })
     }
-  }, [searchParams, setSearchParams])
+  }, [searchParams, setSearchParams, isSignedIn])
 
   const coordinates = useLocationStore((state) => state.coordinates)
   const radiusKm = useLocationStore((state) => state.radiusKm)
