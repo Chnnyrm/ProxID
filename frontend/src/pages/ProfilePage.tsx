@@ -164,6 +164,39 @@ export function ProfilePage() {
     setUiStateOverride(null)
   }
 
+  const handleApproveVerification = () => {
+    const nonce = request.data?.nonce ?? verification.data?.nonce
+    if (nonce) {
+      setUiStateOverride('proof received')
+      approve.mutate(
+        {
+          nonce,
+          status: 'approved',
+          proof_reference: 'concordium-zkp-attestation',
+        },
+        {
+          onError: (err) => {
+            setUiStateOverride(null)
+            const msg = err instanceof Error ? err.message : String(err)
+            setVerificationError(`Verification approval failed: ${msg}`)
+          },
+        },
+      )
+    }
+  }
+
+  const handleCancelVerification = () => {
+    const nonce = request.data?.nonce ?? verification.data?.nonce
+    if (nonce) {
+      approve.mutate({
+        nonce,
+        status: 'cancelled',
+        reason: 'User cancelled verification',
+      })
+    }
+    setUiStateOverride(null)
+  }
+
   // Edit form state
   const [editName, setEditName] = useState('')
   const [editUsername, setEditUsername] = useState('')
