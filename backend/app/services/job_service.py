@@ -147,6 +147,12 @@ class JobService:
 
         effective_price = payload.price if payload.price is not None else (payload.min_price or 0.0)
         urls = list(payload.image_urls) if payload.image_urls else ([payload.image_url] if payload.image_url else [])
+        if len(urls) > 5:
+            raise ValidationError(
+                "too_many_images",
+                operation="post_job",
+                external_message="A job can have at most 5 photos.",
+            )
         cover = payload.image_url or (urls[0] if urls else None)
         job = await job_crud.create(
             db,
