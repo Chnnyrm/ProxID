@@ -33,11 +33,23 @@ on it. A plain container on Render has none of those limits.
 Without the two sponsor variables the service starts, reports `not_ready` with the reason,
 and refuses to settle. It never reports a payment as settled unless it settled.
 
-## Deploy
+## Deploy - manual, because a Blueprint is not on the free tier
 
-    Render -> New -> Blueprint -> this repository
-    render.yaml is read automatically
-    set the two sponsor variables in the dashboard
+A Blueprint is Render's infrastructure-as-code deploy and it requires a paid account. The
+free tier only allows creating a web service by hand, which is fine and costs nothing.
+
+    Render -> New -> Web Service
+    Connect the repository
+    Language:        Docker
+    Root Directory:  x402
+    Dockerfile Path: ./Dockerfile
+    Instance Type:   Free
+    Health Check:    /health
+    Region:          Frankfurt
+    -> Create, then add the two sponsor variables under Environment
+
+No render.yaml is committed: it would only work on a paid plan and would mislead the next
+person to try it.
 
 Then point an uptime monitor at `/health` every ten minutes, so the free instance does not
 sleep during judging.
