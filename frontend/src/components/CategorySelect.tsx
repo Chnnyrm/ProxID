@@ -83,14 +83,15 @@ export function CategorySelect({
 
     try {
       const res = await createCategoryMutation.mutateAsync({ name: clean })
-      if (res.data?.id) {
-        onChange(res.data.id)
+      const newId = res?.id ?? (res as unknown as { data?: { id?: string } })?.data?.id
+      if (newId) {
+        onChange(newId)
       }
       setIsCreating(false)
       setNewCatName('')
       setError(null)
-    } catch (err: any) {
-      const msg = err.response?.data?.detail?.message || 'Could not create category.'
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Could not create category.'
       setError(msg)
     }
   }
