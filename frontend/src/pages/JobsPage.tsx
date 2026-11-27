@@ -13,6 +13,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
+import { ImageMultiUpload } from '@/components/ImageMultiUpload'
 import { JobCard } from '@/components/JobCard'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -457,6 +458,7 @@ function PostJobForm({
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
   const [categoryId, setCategoryId] = useState('')
+  const [images, setImages] = useState<string[]>([])
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [submitting, setSubmitting] = useState(false)
 
@@ -479,10 +481,13 @@ function PostJobForm({
         category_id: categoryId || undefined,
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
+        image_urls: images,
+        image_url: images[0] || undefined,
       })
       setTitle('')
       setDescription('')
       setPrice('')
+      setImages([])
       onDone()
     } catch {
       // error handled by mutation
@@ -554,6 +559,14 @@ function PostJobForm({
             disabled={submitting}
             required
           />
+
+          <div>
+            <ImageMultiUpload
+              value={images}
+              onChange={setImages}
+              disabled={submitting}
+            />
+          </div>
 
           {post.isError ? (
             <p role="alert" className="rounded-xl border border-line bg-accent-wash p-3 text-xs text-ink">

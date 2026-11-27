@@ -42,6 +42,7 @@ import {
   HouseIllustration,
   TradespersonIllustration,
 } from '@/components/illustrations/CartoonIllustrations'
+import { ImageMultiUpload } from '@/components/ImageMultiUpload'
 import { NeighborhoodMap, type MapPoint } from '@/components/map/NeighborhoodMap'
 import { ProviderCard } from '@/components/ProviderCard'
 import { SafeImage } from '@/components/SafeImage'
@@ -86,6 +87,7 @@ export function ProvidersPage() {
   const [newPrice, setNewPrice] = useState('')
   const [newRadius, setNewRadius] = useState('5.0')
   const [newDescription, setNewDescription] = useState('')
+  const [newImages, setNewImages] = useState<string[]>([])
   const [publishError, setPublishError] = useState<string | null>(null)
 
   const coordinates = useLocationStore((state) => state.coordinates)
@@ -190,11 +192,14 @@ export function ProvidersPage() {
         description: newDescription.trim() || null,
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
+        image_urls: newImages,
+        image_url: newImages[0] || null,
       })
       setIsPublishOpen(false)
       setNewTitle('')
       setNewPrice('')
       setNewDescription('')
+      setNewImages([])
     } catch {
       setPublishError('Failed to publish listing. Check connection and retry.')
     }
@@ -755,6 +760,14 @@ export function ProvidersPage() {
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
                   className="w-full rounded-lg border border-line bg-surface px-3 py-2 text-xs text-ink placeholder:text-muted focus:border-structural focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <ImageMultiUpload
+                  value={newImages}
+                  onChange={setNewImages}
+                  disabled={createListingMutation.isPending}
                 />
               </div>
 

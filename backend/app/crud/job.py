@@ -242,10 +242,13 @@ async def create(
     latitude: float | None,
     longitude: float | None,
     image_url: str | None = None,
+    image_urls: list[str] | None = None,
     scheduled_for: datetime | None = None,
     is_demo: bool = False,
 ) -> Job:
     """Insert one open job and flush."""
+    urls = list(image_urls) if image_urls else ([image_url] if image_url else [])
+    cover = image_url or (urls[0] if urls else None)
     job = Job(
         client_id=client_id,
         title=title.strip(),
@@ -256,7 +259,8 @@ async def create(
         category_id=category_id,
         service_listing_id=service_listing_id,
         status="open",
-        image_url=image_url,
+        image_url=cover,
+        image_urls=urls,
         scheduled_for=scheduled_for,
         is_demo=is_demo,
     )

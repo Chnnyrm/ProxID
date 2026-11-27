@@ -26,6 +26,7 @@ import { Link, useSearchParams } from 'react-router-dom'
 
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
+import { ImageMultiUpload } from '@/components/ImageMultiUpload'
 import { ServiceCard } from '@/components/ServiceCard'
 import { CardSkeleton } from '@/components/ui/skeleton'
 import {
@@ -90,6 +91,7 @@ export function ServicesPage() {
   const [pubDesc, setPubDesc] = useState('')
   const [pubPrice, setPubPrice] = useState('')
   const [pubCatId, setPubCatId] = useState('')
+  const [pubImages, setPubImages] = useState<string[]>([])
 
   const handleNearbyToggle = async () => {
     setIsLocating(true)
@@ -136,12 +138,15 @@ export function ServicesPage() {
       latitude: coordinates.latitude,
       longitude: coordinates.longitude,
       radius_km: radiusKm,
+      image_urls: pubImages,
+      image_url: pubImages[0] || undefined,
     })
 
     setPubTitle('')
     setPubDesc('')
     setPubPrice('')
     setPubCatId('')
+    setPubImages([])
     setIsPublishOpen(false)
   }
 
@@ -435,6 +440,14 @@ export function ServicesPage() {
                   value={pubDesc}
                   onChange={(e) => setPubDesc(e.target.value)}
                   className="w-full rounded-xl border border-line bg-sunken/40 px-3 py-2 text-xs text-ink placeholder:text-muted focus:outline-none focus:ring-1 focus:ring-structural"
+                />
+              </div>
+
+              <div>
+                <ImageMultiUpload
+                  value={pubImages}
+                  onChange={setPubImages}
+                  disabled={createListingMutation.isPending}
                 />
               </div>
 

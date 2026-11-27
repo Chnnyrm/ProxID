@@ -52,12 +52,14 @@ export const providerService = {
 
   /** Publish a new service listing. */
   createListing: (data: {
-    category_id: string
+    category_id?: string | null
     title: string
     description?: string | null
     price?: number | null
     latitude: number
     longitude: number
     radius_km: number
+    image_url?: string | null
+    image_urls?: string[]
   }) => api.post<ServiceListing>('/services', data),
 }
