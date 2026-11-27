@@ -1,13 +1,14 @@
 /**
  * StoryTourModal.tsx - 8-Scene Paper-Craft Cartoon Story Demo.
  * Pure ASCII, palette compliant (#474329 ink, #F0E5DB sand, #FC75B4 accent).
- * Features Amaka, Tunde, and proxidAI.
- * Resumable from localStorage, with Back, Next, Skip, and Finish controls.
+ * Features Amaka, Tunde, and proxidAI with framer-motion cut-paper choreography.
+ * Resumable from localStorage, with Back, Next, Pause/Play, Jump, and Finish controls.
  */
 
-import { useEffect } from 'react'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { ArrowLeft, ArrowRight, Pause, Play, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react'
 
 import {
   Scene1AmakaNeedsPlumber,
@@ -28,7 +29,7 @@ interface StorySceneData {
   subtitle: string
   story: string
   lesson: string
-  component: React.ComponentType<{ className?: string }>
+  component: React.ComponentType<{ className?: string; isPlaying?: boolean }>
 }
 
 const STORY_SCENES: StorySceneData[] = [
@@ -108,6 +109,7 @@ const STORY_SCENES: StorySceneData[] = [
 
 export function StoryTourModal() {
   const navigate = useNavigate()
+  const shouldReduce = useReducedMotion() ?? false
   const isTourActive = useTourStore((state) => state.isTourActive)
   const tourType = useTourStore((state) => state.tourType)
   const sceneIndex = useTourStore((state) => state.storyScene)
@@ -116,10 +118,27 @@ export function StoryTourModal() {
   const updateProfile = useAuthStore((state) => state.updateProfile)
   const status = useAuthStore((state) => state.status)
 
-  if (!isTourActive || tourType !== 'story') return null
+  const [isPlaying, setIsPlaying] = useState(true)
+  const [slideDirection, setSlideDirection] = useState<1 | -1>(1)
 
   const currentScene = STORY_SCENES[sceneIndex] ?? STORY_SCENES[0]
   const SceneComponent = currentScene.component
+
+  // Auto-advance when playing (7.5 seconds per scene)
+  useEffect(() => {
+    if (!isTourActive || tourType !== 'story' || !isPlaying) return
+    const timer = setTimeout(() => {
+      if (sceneIndex < STORY_SCENES.length - 1) {
+        setSlideDirection(1)
+        setStoryScene(sceneIndex + 1)
+      } else {
+        setIsPlaying(false)
+      }
+    }, 7500)
+    return () => clearTimeout(timer)
+  }, [isTourActive, tourType, isPlaying, sceneIndex, setStoryScene])
+
+  if (!isTourActive || tourType !== 'story') return null
 
   const handleFinish = () => {
     setTourActive(false, null)
@@ -132,6 +151,7 @@ export function StoryTourModal() {
 
   const handleNext = () => {
     if (sceneIndex < STORY_SCENES.length - 1) {
+      setSlideDirection(1)
       setStoryScene(sceneIndex + 1)
     } else {
       handleFinish()
@@ -140,7 +160,22 @@ export function StoryTourModal() {
 
   const handlePrev = () => {
     if (sceneIndex > 0) {
+      setSlideDirection(-1)
       setStoryScene(sceneIndex - 1)
+    }
+  }
+
+  const handleJump = (idx: number) => {
+    setSlideDirection(idx > sceneIndex ? 1 : -1)
+    setStoryScene(idx)
+  }
+
+  // Mobile horizontal swipe detection
+  const handleDragEnd = (_: unknown, info: { offset: { x: number } }) => {
+    if (info.offset.x < -45) {
+      handleNext()
+    } else if (info.offset.x > 45) {
+      handlePrev()
     }
   }
 
@@ -151,60 +186,141 @@ export function StoryTourModal() {
       aria-label="Story Demo Tour"
       className="fixed inset-0 z-[1200] flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm select-none"
     >
-      <div className="relative w-full max-w-lg rounded-2xl border-2 border-structural bg-surface p-5 sm:p-6 shadow-2xl flex flex-col space-y-4 max-h-[95vh] overflow-y-auto">
-        {/* Top Header */}
+      <div className="relative w-full max-w-lg rounded-2xl border-2 border-structural bg-surface p-4 sm:p-6 shadow-2xl flex flex-col space-y-4 max-h-[96vh] overflow-y-auto">
+        {/* Top Header with title, progress & pause/play */}
         <div className="flex items-center justify-between border-b border-line pb-3">
           <div className="flex items-center gap-2">
             <span className="font-mono text-xs font-bold uppercase tracking-wider text-accent-ink bg-accent px-2 py-0.5 rounded-md">
               {currentScene.title}
             </span>
             <span className="font-mono text-xs text-muted">
-              Scene {sceneIndex + 1} of {STORY_SCENES.length}
+              {sceneIndex + 1} / {STORY_SCENES.length}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={handleFinish}
-            className="rounded-lg p-1 text-muted hover:text-ink hover:bg-sunken transition-colors"
-            title="Skip demo story"
-            aria-label="Skip demo story"
-          >
-            <X size={18} />
-          </button>
-        </div>
 
-        {/* Paper-craft Vector Illustration */}
-        <div className="flex justify-center py-1">
-          <SceneComponent className="w-full h-auto max-h-[220px] object-contain rounded-xl" />
-        </div>
+          <div className="flex items-center gap-1.5">
+            {/* Pause / Play Narration Button */}
+            <button
+              type="button"
+              onClick={() => setIsPlaying((prev) => !prev)}
+              data-testid="tour-pause-play-btn"
+              className="p-1.5 rounded-lg border border-line bg-surface text-ink hover:bg-sunken transition-colors"
+              title={isPlaying ? 'Pause auto-play' : 'Resume auto-play'}
+              aria-label={isPlaying ? 'Pause auto-play' : 'Resume auto-play'}
+            >
+              {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+            </button>
 
-        {/* Story Prose and Lesson */}
-        <div className="space-y-2">
-          <h2 className="font-display text-lg sm:text-xl font-bold uppercase tracking-tight text-ink">
-            {currentScene.subtitle}
-          </h2>
-          <p className="text-xs sm:text-sm text-ink leading-relaxed">
-            {currentScene.story}
-          </p>
-          <div className="rounded-xl border border-line bg-sunken/40 p-3 text-xs text-muted">
-            <strong className="text-ink font-semibold">How ProxID solves this: </strong>
-            <span>{currentScene.lesson}</span>
+            {/* Close Button */}
+            <button
+              type="button"
+              onClick={handleFinish}
+              data-testid="tour-close-btn"
+              className="rounded-lg p-1.5 text-muted hover:text-ink hover:bg-sunken transition-colors"
+              title="Close tour"
+              aria-label="Close tour"
+            >
+              <X size={16} />
+            </button>
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="w-full bg-line h-1.5 rounded-full overflow-hidden">
-          <div
-            className="bg-accent h-full transition-all duration-300"
-            style={{ width: `${((sceneIndex + 1) / STORY_SCENES.length) * 100}%` }}
-          />
+        {/* Scene Container with Mobile Swipe & Card Slide Transition */}
+        <AnimatePresence mode="wait" custom={slideDirection}>
+          <motion.div
+            key={sceneIndex}
+            custom={slideDirection}
+            drag="x"
+            dragConstraints={{ left: 0, right: 0 }}
+            dragElastic={0.2}
+            onDragEnd={handleDragEnd}
+            initial={
+              shouldReduce
+                ? { opacity: 0 }
+                : { opacity: 0, x: slideDirection * 100 }
+            }
+            animate={{ opacity: 1, x: 0 }}
+            exit={
+              shouldReduce
+                ? { opacity: 0 }
+                : { opacity: 0, x: slideDirection * -100 }
+            }
+            transition={
+              shouldReduce
+                ? { duration: 0.15 }
+                : { duration: 0.35, ease: [0.2, 0.9, 0.3, 1] }
+            }
+            className="flex flex-col space-y-3 cursor-grab active:cursor-grabbing"
+          >
+            {/* Paper-craft Vector Illustration */}
+            <div className="flex justify-center py-1">
+              <SceneComponent
+                className="w-full h-auto max-h-[220px] object-contain rounded-xl select-none"
+                isPlaying={isPlaying}
+              />
+            </div>
+
+            {/* Line-by-line Staggered Narration */}
+            <div className="space-y-2">
+              {/* Line 1: Subtitle */}
+              <motion.h2
+                initial={shouldReduce ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.1, duration: 0.35 }}
+                className="font-display text-base sm:text-lg font-bold uppercase tracking-tight text-ink"
+              >
+                {currentScene.subtitle}
+              </motion.h2>
+
+              {/* Line 2: Story Prose */}
+              <motion.p
+                initial={shouldReduce ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.22, duration: 0.35 }}
+                className="text-xs sm:text-sm text-ink leading-relaxed"
+              >
+                {currentScene.story}
+              </motion.p>
+
+              {/* Line 3: How ProxID Solves this (Lesson) */}
+              <motion.div
+                initial={shouldReduce ? false : { opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.34, duration: 0.35 }}
+                className="rounded-xl border border-line bg-sunken/40 p-3 text-xs text-muted"
+              >
+                <strong className="text-ink font-semibold">How ProxID solves this: </strong>
+                <span>{currentScene.lesson}</span>
+              </motion.div>
+            </div>
+          </motion.div>
+        </AnimatePresence>
+
+        {/* Scene Jump Dots / Chips */}
+        <div className="flex items-center justify-center gap-1.5 pt-1">
+          {STORY_SCENES.map((s, idx) => (
+            <button
+              key={s.title}
+              type="button"
+              onClick={() => handleJump(idx)}
+              data-testid={`tour-jump-${idx + 1}`}
+              className={`h-2 rounded-full transition-all duration-200 ${
+                sceneIndex === idx
+                  ? 'w-6 bg-structural'
+                  : 'w-2 bg-line hover:bg-muted/60'
+              }`}
+              title={`Jump to Scene ${idx + 1}: ${s.title}`}
+              aria-label={`Jump to Scene ${idx + 1}: ${s.title}`}
+            />
+          ))}
         </div>
 
-        {/* Action Controls: Back, Skip, Next */}
-        <div className="flex items-center justify-between pt-2">
+        {/* Action Controls: Skip, Back, Next */}
+        <div className="flex items-center justify-between pt-2 border-t border-line">
           <button
             type="button"
             onClick={handleFinish}
+            data-testid="tour-skip-btn"
             className="text-xs font-semibold text-muted hover:text-ink hover:underline"
           >
             Skip to App
@@ -216,6 +332,7 @@ export function StoryTourModal() {
               size="sm"
               disabled={sceneIndex === 0}
               onClick={handlePrev}
+              data-testid="tour-prev-btn"
             >
               <ArrowLeft size={14} className="mr-1" aria-hidden="true" />
               Back
@@ -224,6 +341,7 @@ export function StoryTourModal() {
               intent="primary"
               size="sm"
               onClick={handleNext}
+              data-testid="tour-next-btn"
             >
               <span>{sceneIndex === STORY_SCENES.length - 1 ? 'Start Using ProxID' : 'Next Scene'}</span>
               <ArrowRight size={14} className="ml-1" aria-hidden="true" />

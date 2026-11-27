@@ -30,6 +30,7 @@ import QRCode from 'qrcode'
 import { EmptyState } from '@/components/EmptyState'
 import { ErrorState } from '@/components/ErrorState'
 import { HouseIllustration } from '@/components/illustrations/CartoonIllustrations'
+import { ImageEditorModal } from '@/components/ImageEditorModal'
 import { ProfileActionPanel } from '@/components/ProfileActionPanel'
 import { ProfileToursCard } from '@/components/ProfileToursCard'
 import { SafeImage } from '@/components/SafeImage'
@@ -57,6 +58,8 @@ export function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const [avatarToEdit, setAvatarToEdit] = useState<File | null>(null)
+  const [isAvatarEditorOpen, setIsAvatarEditorOpen] = useState(false)
   const [uploadedPublicId, setUploadedPublicId] = useState<string | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [verificationError, setVerificationError] = useState<string | null>(null)
@@ -164,39 +167,6 @@ export function ProfilePage() {
     setUiStateOverride(null)
   }
 
-  const handleApproveVerification = () => {
-    const nonce = request.data?.nonce ?? verification.data?.nonce
-    if (nonce) {
-      setUiStateOverride('proof received')
-      approve.mutate(
-        {
-          nonce,
-          status: 'approved',
-          proof_reference: 'concordium-zkp-attestation',
-        },
-        {
-          onError: (err) => {
-            setUiStateOverride(null)
-            const msg = err instanceof Error ? err.message : String(err)
-            setVerificationError(`Verification approval failed: ${msg}`)
-          },
-        },
-      )
-    }
-  }
-
-  const handleCancelVerification = () => {
-    const nonce = request.data?.nonce ?? verification.data?.nonce
-    if (nonce) {
-      approve.mutate({
-        nonce,
-        status: 'cancelled',
-        reason: 'User cancelled verification',
-      })
-    }
-    setUiStateOverride(null)
-  }
-
   // Edit form state
   const [editName, setEditName] = useState('')
   const [editUsername, setEditUsername] = useState('')
@@ -222,23 +192,32 @@ export function ProfilePage() {
     setSaveError(null)
   }
 
-  const handleAvatarFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFile = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
+    setAvatarToEdit(file)
+    setIsAvatarEditorOpen(true)
+    event.target.value = ''
+  }
+
+  const handleAvatarEdited = async (editedFile: File) => {
     setIsUploadingAvatar(true)
     setSaveError(null)
     try {
-      const res = await uploadAvatar(file)
-      if (res) {
+      const res = await uploadAvatar(editedFile)
+      if (res?.url) {
         setEditAvatarUrl(res.url)
         setUploadedPublicId(res.public_id)
       } else {
-        setSaveError('Failed to upload picture. Check format (JPG, PNG, WebP).')
+        setSaveError('Failed to upload picture.')
       }
-    } catch {
-      setSaveError('Failed to upload image file.')
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to upload image file.'
+      setSaveError(msg)
     } finally {
       setIsUploadingAvatar(false)
+      setAvatarToEdit(null)
+      setIsAvatarEditorOpen(false)
     }
   }
 
@@ -886,6 +865,17 @@ export function ProfilePage() {
           )}
         </CardBody>
       </Card>
+
+      <ImageEditorModal
+        isOpen={isAvatarEditorOpen}
+        file={avatarToEdit}
+        mode="avatar"
+        onClose={() => {
+          setIsAvatarEditorOpen(false)
+          setAvatarToEdit(null)
+        }}
+        onComplete={handleAvatarEdited}
+      />
     </div>
   )
 }

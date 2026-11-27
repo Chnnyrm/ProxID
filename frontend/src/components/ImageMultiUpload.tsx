@@ -4,6 +4,7 @@
  * Multi-image picker and uploader:
  * - 1 to 5 images supported.
  * - Multi-select file picker using existing /api/v1/upload endpoint.
+ * - ImageEditorModal integrated before upload for cropping, rotation, adjustments.
  * - Drag-and-drop or directional reordering controls.
  * - Remove control per image.
  * - Cover badge on index 0.
@@ -14,6 +15,7 @@
 import { ArrowLeft, ArrowRight, ImagePlus, Loader2, X } from 'lucide-react'
 import { useRef, useState } from 'react'
 
+import { ImageEditorModal } from '@/components/ImageEditorModal'
 import { useUploadMedia } from '@/hooks/useMedia'
 
 interface ImageMultiUploadProps {
@@ -40,7 +42,12 @@ export function ImageMultiUpload({
   const [uploadingList, setUploadingList] = useState<UploadingItem[]>([])
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null)
 
-  const handleFilesSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Editor modal state
+  const [pendingQueue, setPendingQueue] = useState<File[]>([])
+  const [currentEditFile, setCurrentEditFile] = useState<File | null>(null)
+  const [isEditorOpen, setIsEditorOpen] = useState(false)
+
+  const handleFilesSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     if (!files.length) return
 
@@ -54,18 +61,32 @@ export function ImageMultiUpload({
       fileInputRef.current.value = ''
     }
 
-    // Process each file
-    for (const file of selectedFiles) {
-      const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
-      setUploadingList((prev) => [...prev, { id: uploadId, name: file.name }])
+    if (selectedFiles.length > 0) {
+      setCurrentEditFile(selectedFiles[0])
+      setPendingQueue(selectedFiles.slice(1))
+      setIsEditorOpen(true)
+    }
+  }
 
-      try {
-        const res = await uploadMedia.mutateAsync({ file, purpose: 'listings' })
+  const handleEditorComplete = async (editedFile: File) => {
+    setIsEditorOpen(false)
+    const fileToUpload = editedFile
+    const nextInQueue = pendingQueue[0] || null
+    const remainingQueue = pendingQueue.slice(1)
+
+    // Start uploading the edited file
+    const uploadId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    setUploadingList((prev) => [...prev, { id: uploadId, name: fileToUpload.name }])
+
+    uploadMedia
+      .mutateAsync({ file: fileToUpload, purpose: 'listings' })
+      .then((res) => {
         const uploadedUrl = res.data?.url
         if (uploadedUrl) {
           onChange([...value, uploadedUrl])
         }
-      } catch (err) {
+      })
+      .catch(() => {
         setUploadingList((prev) =>
           prev.map((item) =>
             item.id === uploadId ? { ...item, error: 'Upload failed' } : item
@@ -74,10 +95,33 @@ export function ImageMultiUpload({
         setTimeout(() => {
           setUploadingList((prev) => prev.filter((item) => item.id !== uploadId))
         }, 2500)
-        continue
-      }
+      })
+      .finally(() => {
+        setUploadingList((prev) => prev.filter((item) => item.id !== uploadId))
+      })
 
-      setUploadingList((prev) => prev.filter((item) => item.id !== uploadId))
+    // Advance queue if more files exist
+    if (nextInQueue) {
+      setCurrentEditFile(nextInQueue)
+      setPendingQueue(remainingQueue)
+      setIsEditorOpen(true)
+    } else {
+      setCurrentEditFile(null)
+      setPendingQueue([])
+    }
+  }
+
+  const handleEditorClose = () => {
+    setIsEditorOpen(false)
+    const nextInQueue = pendingQueue[0] || null
+    const remainingQueue = pendingQueue.slice(1)
+    if (nextInQueue) {
+      setCurrentEditFile(nextInQueue)
+      setPendingQueue(remainingQueue)
+      setIsEditorOpen(true)
+    } else {
+      setCurrentEditFile(null)
+      setPendingQueue([])
     }
   }
 
@@ -230,6 +274,15 @@ export function ImageMultiUpload({
         accept="image/*"
         onChange={handleFilesSelected}
         className="hidden"
+      />
+
+      {/* Editing modal before upload */}
+      <ImageEditorModal
+        isOpen={isEditorOpen}
+        file={currentEditFile}
+        mode="listing"
+        onClose={handleEditorClose}
+        onComplete={handleEditorComplete}
       />
     </div>
   )
